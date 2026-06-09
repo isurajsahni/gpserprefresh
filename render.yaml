@@ -1,0 +1,23 @@
+# Render Blueprint for the GPSFDK ERP backend API.
+# The server is a plain Node/Express app — it needs `npm install`, NOT a build step.
+# In the Render dashboard you can either use this blueprint (New + → Blueprint) or
+# match these values manually in your existing service's Settings.
+services:
+  - type: web
+    name: gpsfdk-erp-api
+    runtime: node
+    plan: free
+    rootDir: server
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: JWT_SECRET
+        generateValue: true # Render generates a strong secret for you
+      - key: MONGODB_URI
+        sync: false # set this yourself = your Atlas SRV string
+      - key: CLIENT_URL
+        sync: false # set this to your Vercel URL once deployed
