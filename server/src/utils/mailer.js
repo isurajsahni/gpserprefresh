@@ -1,27 +1,34 @@
-import { Resend } from 'resend';
+import nodemailer from 'nodemailer';
 
-// Lazily create the Resend client so the server still boots without a key.
-let resend = null;
-function getClient() {
-  if (resend) return resend;
-  if (process.env.RESEND_API_KEY) {
-    resend = new Resend(process.env.RESEND_API_KEY);
-  }
-  return resend;
+// Lazily create the SMTP transport (works with Resend SMTP, Gmail, SendGrid, etc.)
+// so the server still boots without mail credentials.
+let transporter = null;
+function getTransporter() {
+  if (transporter) return transporter;
+  const { EMAIL_HOST, EMAIL_PORT, EMAIL_USER, EMAIL_PASS } = process.env;
+  if (!EMAIL_HOST || !EMAIL_USER || !EMAIL_PASS) return null;
+  const port = Number(EMAIL_PORT) || 465;
+  transporter = nodemailer.createTransport({
+    host: EMAIL_HOST,
+    port,
+    secure: port === 465, // 465 = implicit TLS; 587 = STARTTLS
+    auth: { user: EMAIL_USER, pass: EMAIL_PASS },
+  });
+  return transporter;
 }
 
-const FROM = process.env.MAIL_FROM || 'GPSFDK ERP <onboarding@resend.dev>';
+const from = () => process.env.EMAIL_FROM || 'GPSFDK ERP <onboarding@resend.dev>';
 
 /**
- * Sends an email via Resend. If no RESEND_API_KEY is configured, it logs the
- * message to the console instead (dev fallback) so the flow never blocks.
- * Returns { sent: boolean, id?, error? }.
+ * Sends an email over SMTP (Nodemailer). If EMAIL_HOST/USER/PASS are not
+ * configured, it logs the message to the console instead (dev fallback) so the
+ * flow never blocks. Returns { sent: boolean, id?, error?, dev? }.
  */
 export async function sendMail({ to, subject, html, text }) {
-  const client = getClient();
+  const tx = getTransporter();
 
-  if (!client) {
-    console.log('\n📧 [DEV MAIL — no RESEND_API_KEY set, not actually sent]');
+  if (!tx) {
+    console.log('\n📧 [DEV MAIL — no EMAIL_HOST/USER/PASS set, not actually sent]');
     console.log(`   To:      ${to}`);
     console.log(`   Subject: ${subject}`);
     console.log(`   ${text || '(html email)'}\n`);
@@ -29,14 +36,10 @@ export async function sendMail({ to, subject, html, text }) {
   }
 
   try {
-    const { data, error } = await client.emails.send({ from: FROM, to, subject, html, text });
-    if (error) {
-      console.error('📧 Resend error:', error);
-      return { sent: false, error: error.message || 'Email failed' };
-    }
-    return { sent: true, id: data?.id };
+    const info = await tx.sendMail({ from: from(), to, subject, html, text });
+    return { sent: true, id: info.messageId };
   } catch (err) {
-    console.error('📧 Mailer exception:', err.message);
+    console.error('📧 Mailer error:', err.message);
     return { sent: false, error: err.message };
   }
 }

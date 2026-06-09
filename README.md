@@ -179,7 +179,7 @@ GET    /api/notifications          PATCH /api/notifications/:id/read
 
 - `server/.env` ships with a working local config (gitignored). **Change `JWT_SECRET` before any real deployment.**
 - To use MongoDB Atlas, set `MONGODB_URI` in `server/.env` to your Atlas SRV string, then `npm run seed`.
-- **Email (Resend):** set `RESEND_API_KEY` (from https://resend.com/api-keys) and `MAIL_FROM` in `server/.env` to send new-user credential emails. Without a key, the email is **logged to the server console** instead (dev fallback) and the Employees screen shows the credentials so the admin can share them manually. `MAIL_FROM` must use a verified Resend domain (or `onboarding@resend.dev` for testing).
+- **Email (SMTP via Nodemailer):** set `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_USER`, `EMAIL_PASS`, `EMAIL_FROM` in `server/.env` to send new-user credential emails. For Resend SMTP use `EMAIL_HOST=smtp.resend.com`, `EMAIL_USER=resend`, `EMAIL_PASS=<your Resend API key>`, `EMAIL_PORT=465`, and an `EMAIL_FROM` on a Resend-verified domain. Without these, the email is **logged to the server console** instead (dev fallback) and the Employees screen shows the credentials so the admin can share them manually. Works with any SMTP provider (Gmail, SendGrid, etc.).
 - **Creating users:** Super Admin → **Employees → Create Account** → enter name/email/role, optionally a demo password (blank = auto-generated), set the shift, Save. The user gets an Employee ID + password by email and can log in immediately.
 - **Shift / attendance control:** edit a user's shift in the Employees form; Super Admin can add or correct any attendance record on the **Attendance** page (Add Record / row edit).
 - Default password for seeded users is intentionally simple for demo purposes only.
