@@ -8,6 +8,10 @@ const userSchema = new mongoose.Schema(
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
     passwordHash: { type: String, required: true, select: false },
     role: { type: String, enum: ROLES, required: true },
+    employeeId: { type: String, unique: true, sparse: true },
+    // Work-shift timing (HH:mm). 'Late' on check-in is computed against shiftStart.
+    shiftStart: { type: String, default: '09:30' },
+    shiftEnd: { type: String, default: '18:30' },
     department: { type: String, default: 'General' },
     avatar: { type: String, default: '' },
     phone: { type: String, default: '' },

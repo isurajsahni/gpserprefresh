@@ -12,6 +12,8 @@ An internal ERP web application for **GPSFDK.com**, a GPS fleet-tracking company
 - **Module access matrix** enforced on **both** the backend (middleware + query scoping) and the frontend (route guards + conditional UI).
 - **Modules**: Dashboard, Employees, Attendance, Leaves, Tenders, Projects, Tasks, Payroll, Finance & Expenses, Campaigns, Leads, Assets, Design Library, Reports, Notifications, Profile, Settings.
 - **Gamification & culture**: Employee of the Month / Year leaderboards, daily Good-Morning "best thought" feed (first quality post earns an EOM point), notice board, holidays.
+- **Admin user provisioning**: Super Admin creates accounts (email + role, optional demo password). A unique Employee ID and password are generated and **emailed to the user via Resend**; they log in and change it. No public self-service needed.
+- **Shift timings & attendance control**: each user has a work shift (`shiftStart`/`shiftEnd`); "Late" on check-in is computed against their shift. Super Admin can add/edit/correct any employee's attendance record from the dashboard.
 - **Auth**: JWT (httpOnly cookie **and** `Authorization: Bearer` header), bcrypt-hashed passwords, zod validation.
 - Charts via **recharts**, icons via **lucide-react**, dates via **date-fns**, styling via **Tailwind CSS**.
 
@@ -177,4 +179,7 @@ GET    /api/notifications          PATCH /api/notifications/:id/read
 
 - `server/.env` ships with a working local config (gitignored). **Change `JWT_SECRET` before any real deployment.**
 - To use MongoDB Atlas, set `MONGODB_URI` in `server/.env` to your Atlas SRV string, then `npm run seed`.
-- Default password for seeded users and admin-created employees is intentionally simple for demo purposes only.
+- **Email (Resend):** set `RESEND_API_KEY` (from https://resend.com/api-keys) and `MAIL_FROM` in `server/.env` to send new-user credential emails. Without a key, the email is **logged to the server console** instead (dev fallback) and the Employees screen shows the credentials so the admin can share them manually. `MAIL_FROM` must use a verified Resend domain (or `onboarding@resend.dev` for testing).
+- **Creating users:** Super Admin → **Employees → Create Account** → enter name/email/role, optionally a demo password (blank = auto-generated), set the shift, Save. The user gets an Employee ID + password by email and can log in immediately.
+- **Shift / attendance control:** edit a user's shift in the Employees form; Super Admin can add or correct any attendance record on the **Attendance** page (Add Record / row edit).
+- Default password for seeded users is intentionally simple for demo purposes only.

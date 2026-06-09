@@ -58,8 +58,11 @@ export const checkIn = asyncHandler(async (req, res) => {
 
   const now = new Date();
   const checkInStr = now.toTimeString().slice(0, 5);
-  // Late if after 09:30.
-  const status = now.getHours() > 9 || (now.getHours() === 9 && now.getMinutes() > 30) ? 'Late' : 'Present';
+  // Late if check-in is after the user's assigned shift start (default 09:30).
+  const me = await User.findById(req.auth.id).select('shiftStart');
+  const [shiftH, shiftM] = (me?.shiftStart || '09:30').split(':').map(Number);
+  const nowMins = now.getHours() * 60 + now.getMinutes();
+  const status = nowMins > shiftH * 60 + shiftM ? 'Late' : 'Present';
 
   if (!record) {
     record = await Attendance.create({ employee: req.auth.id, date: start, checkIn: checkInStr, status });
