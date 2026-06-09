@@ -6,6 +6,7 @@
   "main": "src/index.js",
   "scripts": {
     "dev": "nodemon src/index.js",
+    "build": "echo No build step needed for Express API",
     "start": "node src/index.js",
     "seed": "node src/seed.js"
   },
