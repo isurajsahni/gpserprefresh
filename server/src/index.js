@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import './config/timezone.js'; // must precede any Date usage — sets TZ to Asia/Kolkata
 import { createApp } from './app.js';
 import { connectDB } from './config/db.js';
 
