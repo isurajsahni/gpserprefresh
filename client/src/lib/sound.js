@@ -21,36 +21,15 @@ function getCtx() {
   return ctx;
 }
 
-// Browsers block audio until the user interacts with the page. Resume the audio
-// context on the first gesture so later chimes play without being suppressed.
-function installUnlock() {
-  if (typeof window === 'undefined' || unlocked) return;
-  const unlock = () => {
-    const c = getCtx();
-    if (c && c.state === 'suspended') c.resume().catch(() => {});
-    unlocked = true;
-    window.removeEventListener('pointerdown', unlock);
-    window.removeEventListener('keydown', unlock);
-  };
-  window.addEventListener('pointerdown', unlock);
-  window.addEventListener('keydown', unlock);
-}
-installUnlock();
-
-// A soft two-note "ding" reminiscent of a messaging app.
-export function playChatChime() {
-  if (isChatSoundMuted()) return;
-  const c = getCtx();
-  if (!c) return;
-  if (c.state === 'suspended') c.resume().catch(() => {});
-
+// Actually schedule + play the two notes. The context must be running by now.
+function beep(c) {
   const master = c.createGain();
   master.gain.value = 0.5;
   master.connect(c.destination);
 
   const now = c.currentTime;
   const notes = [
-    { freq: 880, start: 0, dur: 0.14 },     // A5
+    { freq: 880, start: 0, dur: 0.14 },      // A5
     { freq: 1318.5, start: 0.11, dur: 0.2 }, // E6
   ];
   for (const n of notes) {
@@ -66,5 +45,41 @@ export function playChatChime() {
     g.connect(master);
     osc.start(t0);
     osc.stop(t0 + n.dur + 0.02);
+  }
+}
+
+// Browsers block audio until the user interacts with the page, and they suspend
+// the context when the tab loses focus. Resume eagerly on gestures/focus so a
+// chime fired from a background poll actually plays.
+function resumeCtx() {
+  const c = getCtx();
+  if (c && c.state === 'suspended') c.resume().catch(() => {});
+}
+
+function installUnlock() {
+  if (typeof window === 'undefined' || unlocked) return;
+  unlocked = true;
+  const onGesture = () => resumeCtx();
+  window.addEventListener('pointerdown', onGesture);
+  window.addEventListener('keydown', onGesture);
+  window.addEventListener('focus', resumeCtx);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') resumeCtx();
+  });
+}
+installUnlock();
+
+// A soft two-note "ding" reminiscent of a messaging app.
+export function playChatChime() {
+  if (isChatSoundMuted()) return;
+  const c = getCtx();
+  if (!c) return;
+  // If the context is suspended (e.g. tab was backgrounded), resume first and
+  // only schedule the notes once it's actually running — otherwise they're
+  // scheduled against a frozen clock and never sound.
+  if (c.state === 'suspended') {
+    c.resume().then(() => beep(c)).catch(() => {});
+  } else {
+    beep(c);
   }
 }

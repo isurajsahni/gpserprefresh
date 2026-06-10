@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { useUserOptions } from '../hooks/useFetch';
 import { Avatar, Spinner, EmptyState } from '../components/ui/primitives';
 import Modal from '../components/ui/Modal';
+import { playChatChime } from '../lib/sound';
 import { format } from 'date-fns';
 
 // Let the sidebar badge refresh promptly when we read/receive chat.
@@ -93,8 +94,12 @@ export default function Chat() {
       if (!alive || !data.length) return;
       setMessages((prev) => [...prev, ...data]);
       lastTsRef.current = data[data.length - 1].createdAt;
-      // New messages for the channel I'm viewing are already seen.
-      if (data.some((m) => String(m.sender?._id) !== String(user._id))) markRead(activeId);
+      // A message from someone else arrived in the open conversation: chime and
+      // mark it read (so the unread badge/total don't also count it).
+      if (data.some((m) => String(m.sender?._id) !== String(user._id))) {
+        playChatChime();
+        markRead(activeId);
+      }
     };
 
     fullLoad();
