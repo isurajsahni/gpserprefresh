@@ -11,18 +11,30 @@ export function createApp() {
 
   app.use(helmet());
 
-  // CLIENT_URL may be a comma-separated list of allowed origins (prod + previews).
+  // CLIENT_URL may be a comma-separated list of explicit allowed origins.
   const allowedOrigins = (process.env.CLIENT_URL || 'http://localhost:5173')
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean);
+
+  const isAllowedOrigin = (origin) => {
+    if (!origin) return true; // curl / health checks / same-origin (no Origin header)
+    if (allowedOrigins.includes(origin)) return true;
+    try {
+      const { hostname } = new URL(origin);
+      if (hostname === 'localhost' || hostname === '127.0.0.1') return true;
+      if (hostname.endsWith('.vercel.app')) return true; // Vercel production + preview deploys
+    } catch {
+      /* malformed origin → not allowed */
+    }
+    return false;
+  };
+
   app.use(
     cors({
-      origin(origin, cb) {
-        // Allow non-browser clients (curl, health checks) that send no Origin.
-        if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
-        cb(new Error(`Origin ${origin} not allowed by CORS`));
-      },
+      // Return false (not an error) for disallowed origins so the browser simply
+      // gets no CORS headers instead of a 500 from the error handler.
+      origin: (origin, cb) => cb(null, isAllowedOrigin(origin)),
       credentials: true,
     })
   );
