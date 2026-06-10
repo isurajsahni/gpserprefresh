@@ -1,7 +1,14 @@
 import axios from 'axios';
 
+// Normalize the API base so it always ends in "/api", regardless of whether
+// VITE_API_URL is "https://host", "https://host/", or "https://host/api"
+// (handles Vercel dashboard vs .env.production differences). Backend mounts
+// everything under /api.
+const rawBase = (import.meta.env.VITE_API_URL || '/api').replace(/\/+$/, '');
+const baseURL = rawBase.endsWith('/api') ? rawBase : `${rawBase}/api`;
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || '/api',
+  baseURL,
   withCredentials: true,
 });
 
