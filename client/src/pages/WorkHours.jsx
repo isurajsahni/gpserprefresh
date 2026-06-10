@@ -46,7 +46,7 @@ export default function WorkHours() {
                   <XAxis type="number" tick={{ fontSize: 12 }} />
                   <YAxis type="category" dataKey="name" tick={{ fontSize: 12 }} width={110} />
                   <Tooltip formatter={(v) => `${v}h`} />
-                  <Bar dataKey="hours" fill="#1d4ed8" radius={[0, 6, 6, 0]} />
+                  <Bar dataKey="hours" fill="#0b5d3b" radius={[0, 6, 6, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>

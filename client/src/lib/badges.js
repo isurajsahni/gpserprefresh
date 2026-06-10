@@ -45,4 +45,4 @@ export function badgeClass(status) {
   return MAP[status] || 'badge-gray';
 }
 
-export const CHART_COLORS = ['#1d4ed8', '#2563eb', '#60a5fa', '#a78bfa', '#34d399', '#fbbf24', '#f87171', '#94a3b8'];
+export const CHART_COLORS = ['#0b5d3b', '#0e7048', '#b8902e', '#5b8c6e', '#e4d09a', '#876820', '#a8a294', '#0d2a1c'];

@@ -7,7 +7,7 @@
     font-family: 'Inter', system-ui, sans-serif;
   }
   body {
-    @apply bg-gray-50 text-gray-900 antialiased;
+    @apply bg-cream text-gray-900 antialiased;
   }
 }
 

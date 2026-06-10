@@ -7,7 +7,7 @@ export default function Logo({ subtitle = true, light = false }) {
         <MapPin size={20} />
       </div>
       <div className="leading-tight">
-        <div className={`text-base font-extrabold ${light ? 'text-white' : 'text-gray-900'}`}>GPSFDK.com</div>
+        <div className={`text-base font-extrabold ${light ? 'text-white' : 'text-gray-900'}`}>GPSFDK<span className="text-accent-500">.com</span></div>
         {subtitle && (
           <div className={`text-[10px] font-medium uppercase tracking-wide ${light ? 'text-brand-100' : 'text-gray-400'}`}>
             Enterprise Resource Planning

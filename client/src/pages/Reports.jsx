@@ -43,8 +43,8 @@ export default function Reports() {
               <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => formatCurrencyShort(v)} width={70} />
               <Tooltip formatter={(v) => formatCurrencyShort(v)} />
               <Legend wrapperStyle={{ fontSize: 12 }} />
-              <Bar dataKey="budget" fill="#93c5fd" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="spent" fill="#1d4ed8" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="budget" fill="#e4d09a" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="spent" fill="#0b5d3b" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
@@ -67,7 +67,7 @@ export default function Reports() {
               <XAxis type="number" tick={{ fontSize: 11 }} />
               <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={80} />
               <Tooltip />
-              <Bar dataKey="value" fill="#2563eb" radius={[0, 4, 4, 0]} />
+              <Bar dataKey="value" fill="#0e7048" radius={[0, 4, 4, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
@@ -79,7 +79,7 @@ export default function Reports() {
               <XAxis dataKey="name" tick={{ fontSize: 11 }} />
               <YAxis tick={{ fontSize: 11 }} />
               <Tooltip />
-              <Line type="monotone" dataKey="leads" stroke="#1d4ed8" strokeWidth={2} dot={{ r: 4 }} />
+              <Line type="monotone" dataKey="leads" stroke="#0b5d3b" strokeWidth={2} dot={{ r: 4 }} />
             </LineChart>
           </ResponsiveContainer>
         </ChartCard>

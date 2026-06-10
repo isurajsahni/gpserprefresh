@@ -66,7 +66,7 @@ export default function Dashboard() {
                 <XAxis dataKey="day" tick={{ fontSize: 12 }} />
                 <YAxis tick={{ fontSize: 12 }} />
                 <Tooltip />
-                <Bar dataKey="hours" fill="#1d4ed8" radius={[6, 6, 0, 0]} />
+                <Bar dataKey="hours" fill="#0b5d3b" radius={[6, 6, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           ) : (
