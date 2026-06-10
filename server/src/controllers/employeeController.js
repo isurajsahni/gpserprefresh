@@ -61,7 +61,12 @@ export const createEmployee = asyncHandler(async (req, res) => {
   // Email the login credentials via Resend (falls back to console in dev).
   let emailResult = { sent: false };
   if (sendEmail) {
-    const loginUrl = `${process.env.CLIENT_URL?.split(',')[0] || 'http://localhost:5173'}/login`;
+    // Prefer an explicit public app URL, then the first https origin in CLIENT_URL,
+    // and finally the production site — never link the email to localhost.
+    const origins = (process.env.CLIENT_URL || '').split(',').map((s) => s.trim()).filter(Boolean);
+    const httpsOrigin = origins.find((o) => o.startsWith('https://'));
+    const base = process.env.APP_URL || httpsOrigin || 'https://gpserprefresh-client.vercel.app';
+    const loginUrl = `${base.replace(/\/+$/, '')}/login`;
     const { html, text } = credentialsEmail({
       name, email, password: tempPassword, employeeId, role: ROLE_LABELS[role], loginUrl,
     });

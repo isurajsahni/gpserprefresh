@@ -1,11 +1,14 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Hash, Plus, Send, MessageSquarePlus, Search, Lock } from 'lucide-react';
+import { Hash, Plus, Send, MessageSquarePlus, Search, Lock, UserPlus, Users } from 'lucide-react';
 import api from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { useUserOptions } from '../hooks/useFetch';
 import { Avatar, Spinner, EmptyState } from '../components/ui/primitives';
 import Modal from '../components/ui/Modal';
 import { format } from 'date-fns';
+
+// Let the sidebar badge refresh promptly when we read/receive chat.
+const pingUnread = () => window.dispatchEvent(new Event('chat-unread-changed'));
 
 export default function Chat() {
   const { user } = useAuth();
@@ -15,9 +18,12 @@ export default function Chat() {
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
-  const [newChannel, setNewChannel] = useState(null); // {name, description} | null
+  const [unread, setUnread] = useState({}); // { channelId: count }
+  const [newChannel, setNewChannel] = useState(null); // {name, description, isOpen} | null
   const [dmOpen, setDmOpen] = useState(false);
+  const [addOpen, setAddOpen] = useState(false); // add-people-to-channel modal
   const [userQuery, setUserQuery] = useState('');
+  const [addQuery, setAddQuery] = useState('');
 
   const activeRef = useRef(null);
   const lastTsRef = useRef(null);
@@ -35,11 +41,37 @@ export default function Chat() {
     }
   }, []);
 
+  // Pull per-channel unread counts.
+  const loadUnread = useCallback(async () => {
+    try {
+      const { data } = await api.get('/chat/unread');
+      setUnread(data.byChannel || {});
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  // Mark a channel's notifications read and optimistically clear its badge.
+  const markRead = useCallback((channelId) => {
+    if (!channelId) return;
+    setUnread((u) => {
+      if (!u[channelId]) return u;
+      const next = { ...u };
+      delete next[channelId];
+      return next;
+    });
+    api.patch(`/chat/channels/${channelId}/read`).then(pingUnread).catch(() => {});
+  }, []);
+
   useEffect(() => {
     loadChannels(true);
-    const id = setInterval(() => loadChannels(false), 20000);
+    loadUnread();
+    const id = setInterval(() => {
+      loadChannels(false);
+      loadUnread();
+    }, 15000);
     return () => clearInterval(id);
-  }, [loadChannels]);
+  }, [loadChannels, loadUnread]);
 
   // Full load on channel switch + poll for new messages every 3s.
   useEffect(() => {
@@ -52,6 +84,7 @@ export default function Chat() {
       if (!alive) return;
       setMessages(data);
       lastTsRef.current = data.length ? data[data.length - 1].createdAt : null;
+      markRead(activeId);
     };
 
     const poll = async () => {
@@ -60,12 +93,14 @@ export default function Chat() {
       if (!alive || !data.length) return;
       setMessages((prev) => [...prev, ...data]);
       lastTsRef.current = data[data.length - 1].createdAt;
+      // New messages for the channel I'm viewing are already seen.
+      if (data.some((m) => String(m.sender?._id) !== String(user._id))) markRead(activeId);
     };
 
     fullLoad();
     const id = setInterval(poll, 3000);
     return () => { alive = false; clearInterval(id); };
-  }, [activeId]);
+  }, [activeId, markRead, user._id]);
 
   // Auto-scroll to newest message.
   useEffect(() => {
@@ -104,9 +139,26 @@ export default function Chat() {
     setActiveId(data._id);
   };
 
+  const addMember = async (userId) => {
+    const { data } = await api.post(`/chat/channels/${activeId}/members`, { userId });
+    setChannels((prev) => prev.map((c) => (c._id === data._id ? { ...c, ...data } : c)));
+    setAddQuery('');
+  };
+
   const channelList = channels.filter((c) => c.type === 'channel');
   const dmList = channels.filter((c) => c.type === 'direct');
   const filteredUsers = users.filter((u) => u._id !== user._id && u.name.toLowerCase().includes(userQuery.toLowerCase()));
+  const memberIds = new Set((active?.members || []).map((m) => String(m._id || m)));
+  const addableUsers = users.filter(
+    (u) => !memberIds.has(String(u._id)) && u.name.toLowerCase().includes(addQuery.toLowerCase())
+  );
+
+  const Badge = ({ id }) =>
+    unread[id] ? (
+      <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white">
+        {unread[id] > 9 ? '9+' : unread[id]}
+      </span>
+    ) : null;
 
   return (
     <div className="flex h-[calc(100vh-7rem)] overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
@@ -119,12 +171,14 @@ export default function Chat() {
         <div className="flex-1 overflow-y-auto px-2 py-3">
           <div className="mb-1 flex items-center justify-between px-2">
             <span className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Channels</span>
-            <button onClick={() => setNewChannel({ name: '', description: '' })} className="text-gray-400 hover:text-brand-700"><Plus size={15} /></button>
+            <button onClick={() => setNewChannel({ name: '', description: '', isOpen: true })} className="text-gray-400 hover:text-brand-700"><Plus size={15} /></button>
           </div>
           {channelList.map((c) => (
             <button key={c._id} onClick={() => setActiveId(c._id)}
               className={`flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-sm ${activeId === c._id ? 'bg-brand-700 text-white' : 'text-gray-700 hover:bg-gray-200'}`}>
-              {c.isOpen ? <Hash size={15} /> : <Lock size={13} />} <span className="truncate">{c.displayName}</span>
+              {c.isOpen ? <Hash size={15} /> : <Lock size={13} />}
+              <span className={`truncate ${unread[c._id] && activeId !== c._id ? 'font-semibold text-gray-900' : ''}`}>{c.displayName}</span>
+              {activeId !== c._id && <Badge id={c._id} />}
             </button>
           ))}
 
@@ -135,7 +189,9 @@ export default function Chat() {
           {dmList.map((c) => (
             <button key={c._id} onClick={() => setActiveId(c._id)}
               className={`flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-sm ${activeId === c._id ? 'bg-brand-700 text-white' : 'text-gray-700 hover:bg-gray-200'}`}>
-              <Avatar name={c.displayName} size={22} /> <span className="truncate">{c.displayName}</span>
+              <Avatar name={c.displayName} size={22} />
+              <span className={`truncate ${unread[c._id] && activeId !== c._id ? 'font-semibold text-gray-900' : ''}`}>{c.displayName}</span>
+              {activeId !== c._id && <Badge id={c._id} />}
             </button>
           ))}
           {dmList.length === 0 && <p className="px-2 py-1 text-xs text-gray-400">No direct messages yet</p>}
@@ -148,10 +204,20 @@ export default function Chat() {
           <>
             <div className="flex items-center gap-2 border-b border-gray-200 px-5 py-3">
               {active.type === 'channel' ? <Hash size={18} className="text-gray-400" /> : <Avatar name={active.displayName} size={26} />}
-              <div>
+              <div className="min-w-0">
                 <h3 className="font-semibold text-gray-900">{active.displayName}</h3>
-                {active.description && <p className="text-xs text-gray-400">{active.description}</p>}
+                {active.description && <p className="truncate text-xs text-gray-400">{active.description}</p>}
               </div>
+              {active.type === 'channel' && (
+                <button
+                  onClick={() => { setAddQuery(''); setAddOpen(true); }}
+                  className="ml-auto flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50"
+                >
+                  <Users size={14} />
+                  {(active.members?.length || 0) > 0 && <span>{active.members.length}</span>}
+                  <UserPlus size={14} /> Add
+                </button>
+              )}
             </div>
 
             <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
@@ -193,7 +259,13 @@ export default function Chat() {
         <form id="ch-form" onSubmit={createChannel} className="space-y-3">
           <div><label className="label">Name</label><input required className="input" placeholder="e.g. engineering" value={newChannel?.name || ''} onChange={(e) => setNewChannel({ ...newChannel, name: e.target.value })} /></div>
           <div><label className="label">Description <span className="font-normal text-gray-400">(optional)</span></label><input className="input" value={newChannel?.description || ''} onChange={(e) => setNewChannel({ ...newChannel, description: e.target.value })} /></div>
-          <p className="text-xs text-gray-400">Channels are open to everyone in the company.</p>
+          <label className="flex items-start gap-2 rounded-lg border border-gray-200 p-3 text-sm">
+            <input type="checkbox" className="mt-0.5" checked={newChannel?.isOpen === false} onChange={(e) => setNewChannel({ ...newChannel, isOpen: !e.target.checked })} />
+            <span>
+              <span className="font-medium text-gray-900">Make private</span>
+              <span className="block text-xs text-gray-400">Only people you add can see and join this channel. Open channels are visible to everyone.</span>
+            </span>
+          </label>
         </form>
       </Modal>
 
@@ -212,6 +284,29 @@ export default function Chat() {
           ))}
           {filteredUsers.length === 0 && <p className="py-6 text-center text-sm text-gray-400">No people found</p>}
         </div>
+      </Modal>
+
+      {/* Add people to channel */}
+      <Modal open={addOpen} onClose={() => setAddOpen(false)} title={`Add people to ${active ? '#' + active.displayName : 'channel'}`}>
+        <div className="relative mb-3">
+          <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+          <input className="input pl-9" placeholder="Search people…" value={addQuery} onChange={(e) => setAddQuery(e.target.value)} autoFocus />
+        </div>
+        <div className="max-h-72 space-y-1 overflow-y-auto">
+          {addableUsers.map((u) => (
+            <button key={u._id} onClick={() => addMember(u._id)} className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left hover:bg-gray-50">
+              <Avatar name={u.name} size={32} />
+              <div className="min-w-0 flex-1"><p className="text-sm font-medium text-gray-900">{u.name}</p><p className="text-xs text-gray-400">{u.department}</p></div>
+              <UserPlus size={16} className="text-brand-700" />
+            </button>
+          ))}
+          {addableUsers.length === 0 && <p className="py-6 text-center text-sm text-gray-400">Everyone's already here</p>}
+        </div>
+        {active?.members?.length > 0 && (
+          <p className="mt-3 border-t border-gray-100 pt-3 text-xs text-gray-400">
+            {active.members.length} member{active.members.length === 1 ? '' : 's'}: {active.members.map((m) => m.name).filter(Boolean).join(', ')}
+          </p>
+        )}
       </Modal>
     </div>
   );

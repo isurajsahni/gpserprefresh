@@ -21,8 +21,10 @@ export default function Header({ onMenu }) {
 
   useEffect(() => {
     loadNotifications();
-    const id = setInterval(loadNotifications, 60000);
-    return () => clearInterval(id);
+    const id = setInterval(loadNotifications, 30000);
+    // Refresh immediately when chat messages are read elsewhere in the app.
+    window.addEventListener('chat-unread-changed', loadNotifications);
+    return () => { clearInterval(id); window.removeEventListener('chat-unread-changed', loadNotifications); };
   }, []);
 
   useEffect(() => {
@@ -87,13 +89,23 @@ export default function Header({ onMenu }) {
               </div>
               <div className="max-h-80 overflow-y-auto">
                 {notes.length === 0 && <p className="px-4 py-6 text-center text-sm text-gray-400">No notifications</p>}
-                {notes.map((n) => (
-                  <div key={n._id} className={`border-b border-gray-50 px-4 py-3 ${!n.read ? 'bg-brand-50/40' : ''}`}>
-                    <p className="text-sm font-medium text-gray-900">{n.title}</p>
-                    <p className="text-xs text-gray-500">{n.message}</p>
-                    <p className="mt-1 text-[11px] text-gray-400">{timeAgo(n.createdAt)}</p>
-                  </div>
-                ))}
+                {notes.map((n) => {
+                  const goChat = () => {
+                    setOpenMenu(null);
+                    navigate('/chat');
+                  };
+                  return (
+                    <div
+                      key={n._id}
+                      onClick={n.type === 'chat' ? goChat : undefined}
+                      className={`border-b border-gray-50 px-4 py-3 ${!n.read ? 'bg-brand-50/40' : ''} ${n.type === 'chat' ? 'cursor-pointer hover:bg-gray-50' : ''}`}
+                    >
+                      <p className="text-sm font-medium text-gray-900">{n.title}</p>
+                      <p className="text-xs text-gray-500">{n.message}</p>
+                      <p className="mt-1 text-[11px] text-gray-400">{timeAgo(n.createdAt)}</p>
+                    </div>
+                  );
+                })}
               </div>
               <Link to="/notifications" onClick={() => setOpenMenu(null)} className="block border-t border-gray-100 px-4 py-2.5 text-center text-sm font-medium text-brand-700 hover:bg-gray-50">
                 View all

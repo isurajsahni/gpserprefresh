@@ -56,6 +56,9 @@ import {
   openDirect,
   listMessages,
   sendMessage,
+  unreadCounts,
+  markChannelRead,
+  addMembers,
 } from '../controllers/chatController.js';
 
 const api = Router();
@@ -288,8 +291,11 @@ api.post('/good-morning', postGoodMorning);
   r.get('/channels', listChannels);
   r.post('/channels', createChannel);
   r.post('/direct', openDirect);
+  r.get('/unread', unreadCounts);
   r.get('/channels/:id/messages', listMessages);
   r.post('/channels/:id/messages', sendMessage);
+  r.post('/channels/:id/members', addMembers);
+  r.patch('/channels/:id/read', markChannelRead);
   api.use('/chat', r);
 }
 

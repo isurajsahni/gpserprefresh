@@ -1,13 +1,28 @@
+import { useEffect, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { X } from 'lucide-react';
 import Logo from '../ui/Logo';
 import { NAV_GROUPS } from '../../lib/nav';
 import { hasAccess } from '../../lib/access';
 import { useAuth } from '../../context/AuthContext';
+import api from '../../api/client';
 
 export default function Sidebar({ open, onClose }) {
   const { user } = useAuth();
   const role = user?.role;
+  const [chatUnread, setChatUnread] = useState(0);
+
+  // Poll total unread chat so the Chat nav item can show a badge. The Chat page
+  // dispatches 'chat-unread-changed' when it reads messages, for a snappy refresh.
+  useEffect(() => {
+    let alive = true;
+    const load = () =>
+      api.get('/chat/unread').then((r) => alive && setChatUnread(r.data.total || 0)).catch(() => {});
+    load();
+    const id = setInterval(load, 20000);
+    window.addEventListener('chat-unread-changed', load);
+    return () => { alive = false; clearInterval(id); window.removeEventListener('chat-unread-changed', load); };
+  }, []);
 
   // Filter groups/items by the user's access matrix.
   const groups = NAV_GROUPS.map((g) => ({
@@ -53,7 +68,12 @@ export default function Sidebar({ open, onClose }) {
                     }
                   >
                     <item.icon size={18} />
-                    {item.label}
+                    <span className="flex-1">{item.label}</span>
+                    {item.path === '/chat' && chatUnread > 0 && (
+                      <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white">
+                        {chatUnread > 9 ? '9+' : chatUnread}
+                      </span>
+                    )}
                   </NavLink>
                 ))}
               </div>
