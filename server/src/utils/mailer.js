@@ -1,7 +1,26 @@
 import nodemailer from 'nodemailer';
 
-// Lazily create the SMTP transport (works with Resend SMTP, Gmail, SendGrid, etc.)
-// so the server still boots without mail credentials.
+const from = () => process.env.EMAIL_FROM || 'GPSFDK ERP <onboarding@resend.dev>';
+
+// A Resend API key — either explicit, or the SMTP password if it's a Resend key.
+const resendKey = () =>
+  process.env.RESEND_API_KEY ||
+  (process.env.EMAIL_PASS?.startsWith('re_') ? process.env.EMAIL_PASS : null);
+
+// Send via Resend's HTTPS API (port 443). Hosts like Render block outbound SMTP
+// ports (465/587), so the HTTP API is the reliable path in production.
+async function sendViaResendApi({ to, subject, html, text }) {
+  const res = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${resendKey()}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ from: from(), to: [to], subject, html, text }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) return { sent: false, error: data?.message || `Resend API error ${res.status}` };
+  return { sent: true, id: data?.id };
+}
+
+// Lazily create an SMTP transport (Gmail, SendGrid, generic SMTP) as a fallback.
 let transporter = null;
 function getTransporter() {
   if (transporter) return transporter;
@@ -17,31 +36,40 @@ function getTransporter() {
   return transporter;
 }
 
-const from = () => process.env.EMAIL_FROM || 'GPSFDK ERP <onboarding@resend.dev>';
-
 /**
- * Sends an email over SMTP (Nodemailer). If EMAIL_HOST/USER/PASS are not
- * configured, it logs the message to the console instead (dev fallback) so the
- * flow never blocks. Returns { sent: boolean, id?, error?, dev? }.
+ * Sends an email. Prefers the Resend HTTPS API (works on hosts that block SMTP),
+ * falls back to SMTP, and finally logs to the console (dev) so the flow never
+ * blocks. Returns { sent: boolean, id?, error?, dev? }.
  */
 export async function sendMail({ to, subject, html, text }) {
+  // 1) Resend HTTPS API (production-safe — no SMTP ports).
+  if (resendKey()) {
+    try {
+      return await sendViaResendApi({ to, subject, html, text });
+    } catch (err) {
+      console.error('📧 Resend API error:', err.message);
+      return { sent: false, error: err.message };
+    }
+  }
+
+  // 2) Generic SMTP fallback.
   const tx = getTransporter();
-
-  if (!tx) {
-    console.log('\n📧 [DEV MAIL — no EMAIL_HOST/USER/PASS set, not actually sent]');
-    console.log(`   To:      ${to}`);
-    console.log(`   Subject: ${subject}`);
-    console.log(`   ${text || '(html email)'}\n`);
-    return { sent: false, dev: true };
+  if (tx) {
+    try {
+      const info = await tx.sendMail({ from: from(), to, subject, html, text });
+      return { sent: true, id: info.messageId };
+    } catch (err) {
+      console.error('📧 Mailer error:', err.message);
+      return { sent: false, error: err.message };
+    }
   }
 
-  try {
-    const info = await tx.sendMail({ from: from(), to, subject, html, text });
-    return { sent: true, id: info.messageId };
-  } catch (err) {
-    console.error('📧 Mailer error:', err.message);
-    return { sent: false, error: err.message };
-  }
+  // 3) Dev fallback — log instead of sending.
+  console.log('\n📧 [DEV MAIL — no email provider configured, not actually sent]');
+  console.log(`   To:      ${to}`);
+  console.log(`   Subject: ${subject}`);
+  console.log(`   ${text || '(html email)'}\n`);
+  return { sent: false, dev: true };
 }
 
 /** Branded HTML for the "your account is ready" credentials email. */

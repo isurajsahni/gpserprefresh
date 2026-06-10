@@ -37,6 +37,7 @@ import {
   createEmployee,
   updateEmployee,
   deactivateEmployee,
+  deleteEmployeePermanent,
   userOptions,
 } from '../controllers/employeeController.js';
 import {
@@ -79,7 +80,8 @@ api.get('/users/options', userOptions);
   r.get('/:id', guard, getEmployee);
   r.post('/', guard, createEmployee);
   r.put('/:id', guard, updateEmployee);
-  r.delete('/:id', guard, deactivateEmployee);
+  r.delete('/:id/permanent', guard, deleteEmployeePermanent); // hard delete (inactive only)
+  r.delete('/:id', guard, deactivateEmployee); // soft delete (set Inactive)
   api.use('/employees', r);
 }
 

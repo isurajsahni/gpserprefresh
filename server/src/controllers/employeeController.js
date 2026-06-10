@@ -95,6 +95,22 @@ export const deactivateEmployee = asyncHandler(async (req, res) => {
   res.json(clean(user));
 });
 
+// Permanently delete an employee record. Only allowed for already-Inactive
+// employees, and never for the requesting user themselves.
+export const deleteEmployeePermanent = asyncHandler(async (req, res) => {
+  if (!canWrite('employees', req.auth.role)) throw new ApiError(403, 'No write permission');
+  if (String(req.params.id) === String(req.auth.id)) throw new ApiError(400, 'You cannot delete your own account');
+
+  const user = await User.findById(req.params.id);
+  if (!user) throw new ApiError(404, 'Employee not found');
+  if (user.status !== 'Inactive') {
+    throw new ApiError(400, 'Only inactive employees can be permanently deleted. Deactivate first.');
+  }
+
+  await user.deleteOne();
+  res.json({ success: true, id: req.params.id });
+});
+
 // Lightweight list for dropdowns (assignees, managers) — any authenticated user.
 export const userOptions = asyncHandler(async (_req, res) => {
   const users = await User.find({ status: { $ne: 'Inactive' } }).select('name role department').sort('name');

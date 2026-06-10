@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Pencil, UserX, Search, Mail, Copy, CheckCircle2, AlertTriangle, Clock } from 'lucide-react';
+import { Plus, Pencil, UserX, Trash2, Search, Mail, Copy, CheckCircle2, AlertTriangle, Clock } from 'lucide-react';
 import { useFetch, useUserOptions } from '../hooks/useFetch';
 import { useAuth } from '../context/AuthContext';
 import { canWrite, ROLES, ROLE_LABELS } from '../lib/access';
@@ -63,6 +63,16 @@ export default function Employees() {
     refetch();
   };
 
+  const permanentDelete = async (id, name) => {
+    if (!confirm(`Permanently delete ${name}? This removes the record for good and cannot be undone.`)) return;
+    try {
+      await api.delete(`/employees/${id}/permanent`);
+      refetch();
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
   const copyCreds = () => {
     const c = result.credentials;
     navigator.clipboard?.writeText(`Login: ${c.email}\nPassword: ${c.tempPassword}\nEmployee ID: ${c.employeeId}`);
@@ -111,9 +121,11 @@ export default function Employees() {
               {writable && (
                 <td className="td">
                   <div className="flex gap-1">
-                    <button onClick={() => open(u)} className="btn-ghost btn-sm"><Pencil size={15} /></button>
-                    {u.status !== 'Inactive' && (
-                      <button onClick={() => deactivate(u._id)} className="btn-ghost btn-sm text-red-600"><UserX size={15} /></button>
+                    <button title="Edit" onClick={() => open(u)} className="btn-ghost btn-sm"><Pencil size={15} /></button>
+                    {u.status !== 'Inactive' ? (
+                      <button title="Deactivate" onClick={() => deactivate(u._id)} className="btn-ghost btn-sm text-red-600"><UserX size={15} /></button>
+                    ) : (
+                      <button title="Delete permanently" onClick={() => permanentDelete(u._id, u.name)} className="btn-ghost btn-sm text-red-600"><Trash2 size={15} /></button>
                     )}
                   </div>
                 </td>
