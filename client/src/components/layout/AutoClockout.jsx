@@ -1,11 +1,13 @@
 import { useEffect, useRef } from 'react';
 import api from '../../api/client';
-import { sendAutoClockout } from '../../lib/attendance';
 
 // Mounted once inside the authenticated app shell. While the user is clocked in,
-// it sends a heartbeat so the server knows the app is still open; when the window
-// is closed it fires a best-effort clock-out. Closing the app therefore ends the
-// session — the user must clock in again next time they open it.
+// it sends a heartbeat every 25s so the server knows the app is still open.
+//
+// Closing the whole tab/window stops the heartbeat permanently, so the server
+// marks the session stale (~75s) and clocks the user out automatically. A page
+// refresh reloads and resumes the heartbeat almost immediately — well within the
+// stale window — so a refresh does NOT end the session.
 export default function AutoClockout() {
   const clockedIn = useRef(false);
 
@@ -24,18 +26,10 @@ export default function AutoClockout() {
     const id = setInterval(beat, 25000);
     window.addEventListener('attendance-changed', beat);
 
-    const onHide = () => {
-      if (clockedIn.current) sendAutoClockout();
-    };
-    window.addEventListener('pagehide', onHide);
-    window.addEventListener('beforeunload', onHide);
-
     return () => {
       alive = false;
       clearInterval(id);
       window.removeEventListener('attendance-changed', beat);
-      window.removeEventListener('pagehide', onHide);
-      window.removeEventListener('beforeunload', onHide);
     };
   }, []);
 
