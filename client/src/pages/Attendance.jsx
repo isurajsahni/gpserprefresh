@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { LogIn, LogOut, Clock, Plus, Pencil, Trash2 } from 'lucide-react';
 import { useFetch, useUserOptions } from '../hooks/useFetch';
 import { useAuth } from '../context/AuthContext';
@@ -11,6 +11,26 @@ import api from '../api/client';
 
 const STATUSES = ['Present', 'Late', 'Absent'];
 const emptyRec = { employee: '', date: '', checkIn: '', checkOut: '', status: 'Present', hoursWorked: 0 };
+
+// Live HH:MM:SS counter for the current open session (since today's check-in).
+function SessionTimer({ checkIn }) {
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick((t) => t + 1), 1000);
+    return () => clearInterval(id);
+  }, []);
+  if (!checkIn) return null;
+  const [h, m] = checkIn.split(':').map(Number);
+  const start = new Date();
+  start.setHours(h, m, 0, 0);
+  const secs = Math.max(0, Math.floor((Date.now() - start.getTime()) / 1000));
+  const pad = (n) => String(n).padStart(2, '0');
+  return (
+    <span className="font-mono font-semibold tabular-nums">
+      {pad(Math.floor(secs / 3600))}:{pad(Math.floor((secs % 3600) / 60))}:{pad(secs % 60)}
+    </span>
+  );
+}
 
 export default function Attendance() {
   const { user } = useAuth();
@@ -30,6 +50,7 @@ export default function Attendance() {
     try {
       await api.post(`/attendance/${kind}`);
       setMsg(kind === 'checkin' ? '✅ Checked in successfully' : '✅ Checked out successfully');
+      window.dispatchEvent(new Event('attendance-changed')); // refresh the heartbeat tracker
       refetch();
     } catch (err) {
       setMsg(err.message);
@@ -37,6 +58,14 @@ export default function Attendance() {
       setBusy(false);
     }
   };
+
+  // Refresh the list periodically (and on clock in/out elsewhere) so an
+  // auto-clock-out from a closed session is reflected here.
+  useEffect(() => {
+    const id = setInterval(refetch, 30000);
+    window.addEventListener('attendance-changed', refetch);
+    return () => { clearInterval(id); window.removeEventListener('attendance-changed', refetch); };
+  }, [refetch]);
 
   const openRec = (rec) => {
     setError('');
@@ -94,14 +123,25 @@ export default function Attendance() {
       <PageHeader title="Attendance" subtitle={isAdmin ? 'Manage and correct any employee’s timings' : teamView ? 'Team attendance & summaries' : 'Your check-in / check-out history'}>
         <div className="flex flex-wrap gap-2">
           {isAdmin && <button onClick={() => openRec(null)} className="btn-secondary"><Plus size={18} /> Add Record</button>}
-          <button onClick={() => act('checkin')} disabled={busy || todayRec?.checkIn} className="btn-primary">
+          <button onClick={() => act('checkin')} disabled={busy || todayRec?.clockedIn} className="btn-primary">
             <LogIn size={18} /> Check In
           </button>
-          <button onClick={() => act('checkout')} disabled={busy || !todayRec?.checkIn || todayRec?.checkOut} className="btn-secondary">
+          <button onClick={() => act('checkout')} disabled={busy || !todayRec?.clockedIn} className="btn-secondary">
             <LogOut size={18} /> Check Out
           </button>
         </div>
       </PageHeader>
+
+      {todayRec?.clockedIn && (
+        <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg bg-brand-50 px-3 py-2 text-sm font-medium text-brand-700">
+          <span className="relative flex h-2.5 w-2.5">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand-500 opacity-60" />
+            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-brand-600" />
+          </span>
+          On the clock since {todayRec.checkIn} · <SessionTimer checkIn={todayRec.checkIn} />
+          <span className="text-brand-600/70">— closing the app clocks you out automatically</span>
+        </div>
+      )}
 
       {msg && <div className="mb-4 rounded-lg bg-brand-50 px-3 py-2 text-sm font-medium text-brand-700">{msg}</div>}
 

@@ -26,6 +26,8 @@ import {
   setExpenseStatus,
   checkIn,
   checkOut,
+  attendanceHeartbeat,
+  attendanceToday,
   attendanceSummary,
   listGoodMorning,
   postGoodMorning,
@@ -97,8 +99,10 @@ api.get('/users/options', userOptions);
 }
 
 // ---- Attendance (+ check in/out + summary) ----
-// Register /summary on the parent before the CRUD router so it isn't shadowed by /:id.
+// Register fixed paths on the parent before the CRUD router so they aren't shadowed by /:id.
 api.get('/attendance/summary', requireModule('attendance'), attendanceSummary);
+api.get('/attendance/today', requireModule('attendance'), attendanceToday);
+api.post('/attendance/heartbeat', requireModule('attendance'), attendanceHeartbeat);
 {
   const { router } = crudRouter(Attendance, {
     module: 'attendance',
