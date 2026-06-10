@@ -1,25 +1,34 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { X } from 'lucide-react';
 import Logo from '../ui/Logo';
 import { NAV_GROUPS } from '../../lib/nav';
 import { hasAccess } from '../../lib/access';
 import { useAuth } from '../../context/AuthContext';
+import { playChatChime } from '../../lib/sound';
 import api from '../../api/client';
 
 export default function Sidebar({ open, onClose }) {
   const { user } = useAuth();
   const role = user?.role;
   const [chatUnread, setChatUnread] = useState(0);
+  const prevUnreadRef = useRef(null); // null until first load, so we don't chime on mount
 
-  // Poll total unread chat so the Chat nav item can show a badge. The Chat page
+  // Poll total unread chat so the Chat nav item can show a badge, and play a
+  // chime whenever the count rises (a new message arrived). The Chat page
   // dispatches 'chat-unread-changed' when it reads messages, for a snappy refresh.
   useEffect(() => {
     let alive = true;
     const load = () =>
-      api.get('/chat/unread').then((r) => alive && setChatUnread(r.data.total || 0)).catch(() => {});
+      api.get('/chat/unread').then((r) => {
+        if (!alive) return;
+        const total = r.data.total || 0;
+        if (prevUnreadRef.current !== null && total > prevUnreadRef.current) playChatChime();
+        prevUnreadRef.current = total;
+        setChatUnread(total);
+      }).catch(() => {});
     load();
-    const id = setInterval(load, 20000);
+    const id = setInterval(load, 10000);
     window.addEventListener('chat-unread-changed', load);
     return () => { alive = false; clearInterval(id); window.removeEventListener('chat-unread-changed', load); };
   }, []);

@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Menu, Bell, Search, LogOut, User as UserIcon, ChevronDown } from 'lucide-react';
+import { Menu, Bell, Search, LogOut, User as UserIcon, ChevronDown, Volume2, VolumeX } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { ROLE_LABELS } from '../../lib/access';
 import { Avatar } from '../ui/primitives';
 import { timeAgo } from '../../lib/format';
+import { isChatSoundMuted, setChatSoundMuted, playChatChime } from '../../lib/sound';
 import api from '../../api/client';
 
 export default function Header({ onMenu }) {
@@ -13,7 +14,15 @@ export default function Header({ onMenu }) {
   const [unread, setUnread] = useState(0);
   const [notes, setNotes] = useState([]);
   const [openMenu, setOpenMenu] = useState(null); // 'notif' | 'user'
+  const [muted, setMuted] = useState(isChatSoundMuted());
   const ref = useRef();
+
+  const toggleSound = () => {
+    const next = !muted;
+    setMuted(next);
+    setChatSoundMuted(next);
+    if (!next) playChatChime(); // preview the sound when turning it back on
+  };
 
   const loadNotifications = () => {
     api.get('/notifications/unread-count').then((r) => setUnread(r.data.count)).catch(() => {});
@@ -69,6 +78,15 @@ export default function Header({ onMenu }) {
       </div>
 
       <div className="flex flex-1 items-center justify-end gap-2" ref={ref}>
+        {/* Sound toggle */}
+        <button
+          onClick={toggleSound}
+          title={muted ? 'Unmute chat sound' : 'Mute chat sound'}
+          className="rounded-lg p-2 text-gray-500 hover:bg-gray-100"
+        >
+          {muted ? <VolumeX size={20} /> : <Volume2 size={20} />}
+        </button>
+
         {/* Notifications */}
         <div className="relative">
           <button onClick={openNotif} className="relative rounded-lg p-2 text-gray-500 hover:bg-gray-100">
