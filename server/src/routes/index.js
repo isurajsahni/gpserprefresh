@@ -26,6 +26,7 @@ import {
   setExpenseStatus,
   checkIn,
   checkOut,
+  attendanceSummary,
   listGoodMorning,
   postGoodMorning,
   leaderboard,
@@ -49,6 +50,13 @@ import {
 } from '../controllers/notificationController.js';
 import { dashboardStats } from '../controllers/dashboardController.js';
 import { reportsOverview, attendanceReport } from '../controllers/reportsController.js';
+import {
+  listChannels,
+  createChannel,
+  openDirect,
+  listMessages,
+  sendMessage,
+} from '../controllers/chatController.js';
 
 const api = Router();
 
@@ -85,7 +93,9 @@ api.get('/users/options', userOptions);
   api.use('/employees', r);
 }
 
-// ---- Attendance (+ check in/out) ----
+// ---- Attendance (+ check in/out + summary) ----
+// Register /summary on the parent before the CRUD router so it isn't shadowed by /:id.
+api.get('/attendance/summary', requireModule('attendance'), attendanceSummary);
 {
   const { router } = crudRouter(Attendance, {
     module: 'attendance',
@@ -271,5 +281,16 @@ api.get('/recognition/periods', recognitionPeriods);
 // ---- Good Morning feed ----
 api.get('/good-morning', listGoodMorning);
 api.post('/good-morning', postGoodMorning);
+
+// ---- Chat (channels + direct messages) — available to all authenticated users ----
+{
+  const r = Router();
+  r.get('/channels', listChannels);
+  r.post('/channels', createChannel);
+  r.post('/direct', openDirect);
+  r.get('/channels/:id/messages', listMessages);
+  r.post('/channels/:id/messages', sendMessage);
+  api.use('/chat', r);
+}
 
 export default api;

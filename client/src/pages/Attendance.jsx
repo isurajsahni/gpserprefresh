@@ -49,6 +49,22 @@ export default function Attendance() {
     }
   };
 
+  // Compute worked hours from check-in/out (handles overnight).
+  const computeHours = (ci, co) => {
+    if (!ci || !co) return form.hoursWorked;
+    const [h1, m1] = ci.split(':').map(Number);
+    const [h2, m2] = co.split(':').map(Number);
+    let diff = h2 * 60 + m2 - (h1 * 60 + m1);
+    if (diff < 0) diff += 24 * 60;
+    return Math.round((diff / 60) * 10) / 10;
+  };
+  // Update a time field and auto-fill hours from the resulting in/out pair.
+  const setTime = (field, val) => {
+    const ci = field === 'checkIn' ? val : form.checkIn;
+    const co = field === 'checkOut' ? val : form.checkOut;
+    setForm({ ...form, [field]: val, hoursWorked: computeHours(ci, co) });
+  };
+
   const saveRec = async (e) => {
     e.preventDefault(); setError('');
     try {
@@ -139,9 +155,9 @@ export default function Attendance() {
           </div>
           <div><label className="label">Date</label><input type="date" required className="input" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} /></div>
           <div><label className="label">Status</label><select className="input" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>{STATUSES.map((s) => <option key={s}>{s}</option>)}</select></div>
-          <div><label className="label">Check In</label><input type="time" className="input" value={form.checkIn} onChange={(e) => setForm({ ...form, checkIn: e.target.value })} /></div>
-          <div><label className="label">Check Out</label><input type="time" className="input" value={form.checkOut} onChange={(e) => setForm({ ...form, checkOut: e.target.value })} /></div>
-          <div className="sm:col-span-2"><label className="label">Hours Worked</label><input type="number" step="0.1" className="input" value={form.hoursWorked} onChange={(e) => setForm({ ...form, hoursWorked: Number(e.target.value) })} /></div>
+          <div><label className="label">Check In</label><input type="time" className="input" value={form.checkIn} onChange={(e) => setTime('checkIn', e.target.value)} /></div>
+          <div><label className="label">Check Out</label><input type="time" className="input" value={form.checkOut} onChange={(e) => setTime('checkOut', e.target.value)} /></div>
+          <div className="sm:col-span-2"><label className="label">Hours Worked <span className="font-normal text-gray-400">(auto-filled from times — editable)</span></label><input type="number" step="0.1" className="input" value={form.hoursWorked} onChange={(e) => setForm({ ...form, hoursWorked: Number(e.target.value) })} /></div>
         </form>
       </Modal>
     </div>

@@ -7,8 +7,10 @@ import Login from './pages/public/Login';
 import Register from './pages/public/Register';
 
 import Dashboard from './pages/Dashboard';
+import Chat from './pages/Chat';
 import Employees from './pages/Employees';
 import Attendance from './pages/Attendance';
+import WorkHours from './pages/WorkHours';
 import Leaves from './pages/Leaves';
 import Tenders from './pages/Tenders';
 import Projects from './pages/Projects';
@@ -44,8 +46,10 @@ export default function App() {
         }
       >
         <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/chat" element={<Chat />} />
         <Route path="/employees" element={m('employees', <Employees />)} />
         <Route path="/attendance" element={m('attendance', <Attendance />)} />
+        <Route path="/work-hours" element={m('attendance', <WorkHours />)} />
         <Route path="/leaves" element={m('leaves', <Leaves />)} />
         <Route path="/tenders" element={m('tenders', <Tenders />)} />
         <Route path="/projects" element={m('projects', <Projects />)} />

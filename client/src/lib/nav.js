@@ -4,6 +4,8 @@ import {
   LayoutDashboard,
   Users,
   Clock,
+  Timer,
+  MessagesSquare,
   CalendarDays,
   FolderKanban,
   ListChecks,
@@ -21,13 +23,17 @@ import {
 export const NAV_GROUPS = [
   {
     group: 'Overview',
-    items: [{ label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard, module: null }],
+    items: [
+      { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard, module: null },
+      { label: 'Chat', path: '/chat', icon: MessagesSquare, module: null },
+    ],
   },
   {
     group: 'People',
     items: [
       { label: 'Employees', path: '/employees', icon: Users, module: 'employees' },
       { label: 'Attendance', path: '/attendance', icon: Clock, module: 'attendance' },
+      { label: 'Work Hours', path: '/work-hours', icon: Timer, module: 'attendance' },
       { label: 'Leaves', path: '/leaves', icon: CalendarDays, module: 'leaves' },
     ],
   },

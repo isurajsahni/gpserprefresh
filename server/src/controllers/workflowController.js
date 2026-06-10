@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import { Leave } from '../models/Leave.js';
 import { Expense } from '../models/Expense.js';
 import { Attendance } from '../models/Attendance.js';
@@ -92,6 +93,54 @@ export const checkOut = asyncHandler(async (req, res) => {
   record.hoursWorked = Math.max(0, Math.round(worked * 10) / 10);
   await record.save();
   res.json(record);
+});
+
+// GET /api/attendance/summary?from=&to=  -> per-employee working-hours aggregates.
+// Team-access roles (super_admin, operation) see everyone; others see themselves.
+export const attendanceSummary = asyncHandler(async (req, res) => {
+  const teamView = req.access === true || req.access === 'team';
+
+  const from = req.query.from ? new Date(req.query.from) : (() => { const d = new Date(); d.setDate(1); d.setHours(0, 0, 0, 0); return d; })();
+  const to = req.query.to ? new Date(req.query.to) : new Date();
+  to.setHours(23, 59, 59, 999);
+
+  const match = { date: { $gte: from, $lte: to } };
+  if (!teamView) match.employee = new mongoose.Types.ObjectId(req.auth.id);
+
+  const rows = await Attendance.aggregate([
+    { $match: match },
+    {
+      $group: {
+        _id: '$employee',
+        totalHours: { $sum: { $ifNull: ['$hoursWorked', 0] } },
+        daysPresent: { $sum: { $cond: [{ $eq: ['$status', 'Present'] }, 1, 0] } },
+        daysLate: { $sum: { $cond: [{ $eq: ['$status', 'Late'] }, 1, 0] } },
+        daysAbsent: { $sum: { $cond: [{ $eq: ['$status', 'Absent'] }, 1, 0] } },
+        records: { $sum: 1 },
+      },
+    },
+    { $lookup: { from: 'users', localField: '_id', foreignField: '_id', as: 'employee' } },
+    { $unwind: '$employee' },
+    {
+      $project: {
+        _id: 1,
+        totalHours: { $round: ['$totalHours', 1] },
+        daysPresent: 1, daysLate: 1, daysAbsent: 1, records: 1,
+        avgHours: { $round: [{ $cond: [{ $gt: ['$records', 0] }, { $divide: ['$totalHours', '$records'] }, 0] }, 1] },
+        'employee.name': 1, 'employee.role': 1, 'employee.department': 1,
+        'employee.shiftStart': 1, 'employee.shiftEnd': 1,
+      },
+    },
+    { $sort: { totalHours: -1 } },
+  ]);
+
+  const totals = rows.reduce(
+    (a, r) => ({ totalHours: a.totalHours + r.totalHours, daysPresent: a.daysPresent + r.daysPresent, daysLate: a.daysLate + r.daysLate }),
+    { totalHours: 0, daysPresent: 0, daysLate: 0 }
+  );
+  totals.totalHours = Math.round(totals.totalHours * 10) / 10;
+
+  res.json({ from, to, teamView, rows, totals });
 });
 
 // GET /api/good-morning  -> today's feed
