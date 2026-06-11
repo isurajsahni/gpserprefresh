@@ -12,6 +12,17 @@ import { ROLE_LABELS } from '../lib/access';
 import { formatDate, timeAgo } from '../lib/format';
 import api from '../api/client';
 
+// Semantic colors so the ring's color reflects progress — only Completed is
+// green; in-progress/early statuses are gold/neutral, not "done"-green.
+const STATUS_COLORS = {
+  'To Do': '#a8a294',
+  'In Progress': '#b8902e',
+  'Under Review': '#0e7048',
+  Completed: '#0b5d3b',
+  // task statuses share the same vocabulary where they overlap
+  Blocked: '#b91c1c',
+};
+
 export default function Dashboard() {
   const { user } = useAuth();
   const { data, loading, refetch } = useFetch('/dashboard/stats', []);
@@ -129,8 +140,8 @@ export default function Dashboard() {
                   paddingAngle={charts.projectStatusChart.length > 1 ? 2 : 0}
                   stroke="none"
                 >
-                  {charts.projectStatusChart.map((_, i) => (
-                    <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                  {charts.projectStatusChart.map((entry, i) => (
+                    <Cell key={i} fill={STATUS_COLORS[entry.name] || CHART_COLORS[i % CHART_COLORS.length]} />
                   ))}
                 </Pie>
                 <Tooltip />
