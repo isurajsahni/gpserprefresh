@@ -106,7 +106,7 @@ export default function Employees() {
             <tr key={u._id} className="hover:bg-gray-50">
               <td className="td">
                 <div className="flex items-center gap-3">
-                  <Avatar name={u.name} />
+                  <Avatar name={u.name} src={u.avatar} />
                   <div>
                     <p className="font-medium text-gray-900">{u.name}</p>
                     <p className="text-xs text-gray-400">{u.email}{u.employeeId ? ` · ${u.employeeId}` : ''}</p>

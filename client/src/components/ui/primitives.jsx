@@ -67,18 +67,30 @@ export function StatCard({ label, value, icon: Icon, accent = 'brand', hint }) {
   );
 }
 
-export function Avatar({ name = '?', size = 36, role }) {
+export function Avatar({ name = '?', size = 36, role, src }) {
   const init = name
     .split(' ')
     .filter(Boolean)
     .slice(0, 2)
     .map((n) => n[0]?.toUpperCase())
     .join('');
+  const title = role ? `${name} · ${role}` : name;
+  if (src) {
+    return (
+      <img
+        src={src}
+        alt={name}
+        title={title}
+        className="shrink-0 rounded-full object-cover"
+        style={{ width: size, height: size }}
+      />
+    );
+  }
   return (
     <div
       className="flex shrink-0 items-center justify-center rounded-full bg-brand-100 font-semibold text-brand-700"
       style={{ width: size, height: size, fontSize: size * 0.4 }}
-      title={role ? `${name} · ${role}` : name}
+      title={title}
     >
       {init || '?'}
     </div>

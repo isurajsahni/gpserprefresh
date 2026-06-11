@@ -138,7 +138,7 @@ export default function Header({ onMenu }) {
             onClick={() => setOpenMenu(openMenu === 'user' ? null : 'user')}
             className="flex items-center gap-2 rounded-lg p-1 pr-2 hover:bg-gray-100"
           >
-            <Avatar name={user?.name} size={34} />
+            <Avatar name={user?.name} src={user?.avatar} size={34} />
             <div className="hidden text-left sm:block">
               <p className="text-sm font-semibold leading-tight text-gray-900">{user?.name}</p>
               <p className="text-[11px] leading-tight text-gray-400">{ROLE_LABELS[user?.role]}</p>

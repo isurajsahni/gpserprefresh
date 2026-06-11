@@ -1,9 +1,11 @@
 import { useState } from 'react';
-import { Save, KeyRound } from 'lucide-react';
+import { Save, KeyRound, Camera, Loader2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { ROLE_LABELS } from '../lib/access';
 import { PageHeader, Avatar } from '../components/ui/primitives';
 import { formatCurrency, formatDate } from '../lib/format';
+import { fileToCompressedDataUrl } from '../lib/upload';
+import api from '../api/client';
 
 export default function Profile() {
   const { user, updateProfile } = useAuth();
@@ -11,6 +13,32 @@ export default function Profile() {
   const [pw, setPw] = useState({ currentPassword: '', newPassword: '' });
   const [msg, setMsg] = useState('');
   const [err, setErr] = useState('');
+  const [photoBusy, setPhotoBusy] = useState(false);
+
+  const changePhoto = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { setErr('Please choose an image file'); return; }
+    setErr(''); setMsg(''); setPhotoBusy(true);
+    try {
+      const dataUrl = await fileToCompressedDataUrl(file, 512, 0.8); // square-ish profile photo
+      const { data } = await api.post('/uploads', { image: dataUrl, folder: 'avatars' });
+      await updateProfile({ avatar: data.url });
+      setMsg('Profile photo updated.');
+    } catch (e2) {
+      setErr(e2.message || 'Could not update photo');
+    } finally {
+      setPhotoBusy(false);
+    }
+  };
+
+  const removePhoto = async () => {
+    setErr(''); setMsg(''); setPhotoBusy(true);
+    try { await updateProfile({ avatar: '' }); setMsg('Profile photo removed.'); }
+    catch (e2) { setErr(e2.message); }
+    finally { setPhotoBusy(false); }
+  };
 
   const saveProfile = async (e) => {
     e.preventDefault(); setMsg(''); setErr('');
@@ -32,7 +60,20 @@ export default function Profile() {
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="card-pad text-center">
-          <div className="flex justify-center"><Avatar name={user.name} size={88} /></div>
+          <div className="flex justify-center">
+            <div className="relative">
+              <Avatar name={user.name} src={user.avatar} size={88} />
+              <label className="absolute -bottom-1 -right-1 flex h-8 w-8 cursor-pointer items-center justify-center rounded-full border-2 border-white bg-brand-700 text-white shadow hover:bg-brand-800" title="Change photo">
+                {photoBusy ? <Loader2 size={15} className="animate-spin" /> : <Camera size={15} />}
+                <input type="file" accept="image/*" className="hidden" onChange={changePhoto} disabled={photoBusy} />
+              </label>
+            </div>
+          </div>
+          {user.avatar && (
+            <button onClick={removePhoto} disabled={photoBusy} className="mt-2 text-xs font-medium text-gray-400 hover:text-red-600">
+              Remove photo
+            </button>
+          )}
           <h2 className="mt-4 text-lg font-bold text-gray-900">{user.name}</h2>
           <p className="text-sm text-gray-500">{user.email}</p>
           <span className="badge-blue mt-2 inline-flex">{ROLE_LABELS[user.role]}</span>

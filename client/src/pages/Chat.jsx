@@ -223,7 +223,7 @@ export default function Chat() {
           {dmList.map((c) => (
             <button key={c._id} onClick={() => setActiveId(c._id)}
               className={`flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-sm ${activeId === c._id ? 'bg-brand-700 text-white' : 'text-gray-700 hover:bg-gray-200'}`}>
-              <Avatar name={c.displayName} size={22} />
+              <Avatar name={c.displayName} src={c.otherUser?.avatar} size={22} />
               <span className={`truncate ${unread[c._id] && activeId !== c._id ? 'font-semibold text-gray-900' : ''}`}>{c.displayName}</span>
               {activeId !== c._id && <Badge id={c._id} />}
             </button>
@@ -237,7 +237,7 @@ export default function Chat() {
         {active ? (
           <>
             <div className="flex items-center gap-2 border-b border-gray-200 px-5 py-3">
-              {active.type === 'channel' ? <Hash size={18} className="text-gray-400" /> : <Avatar name={active.displayName} size={26} />}
+              {active.type === 'channel' ? <Hash size={18} className="text-gray-400" /> : <Avatar name={active.displayName} src={active.otherUser?.avatar} size={26} />}
               <div className="min-w-0">
                 <h3 className="font-semibold text-gray-900">{active.displayName}</h3>
                 {active.description && <p className="truncate text-xs text-gray-400">{active.description}</p>}
@@ -260,7 +260,7 @@ export default function Chat() {
                 const mine = String(m.sender?._id) === String(user._id);
                 return (
                   <div key={m._id} className="group flex gap-3">
-                    <Avatar name={m.sender?.name} size={36} />
+                    <Avatar name={m.sender?.name} src={m.sender?.avatar} size={36} />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-baseline gap-2">
                         <span className="text-sm font-semibold text-gray-900">{mine ? 'You' : m.sender?.name}</span>
