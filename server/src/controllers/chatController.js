@@ -95,12 +95,19 @@ async function assertAccess(channelId, userId) {
   return channel;
 }
 
+// Populate spec for a quoted reply (the original message's text + author name).
+const REPLY_POPULATE = { path: 'replyTo', select: 'text sender', populate: { path: 'sender', select: 'name' } };
+
 // GET /api/chat/channels/:id/messages?after=<ISO>
 export const listMessages = asyncHandler(async (req, res) => {
   await assertAccess(req.params.id, req.auth.id);
   const filter = { channel: req.params.id };
   if (req.query.after) filter.createdAt = { $gt: new Date(req.query.after) };
-  const messages = await Message.find(filter).populate('sender', 'name role avatar').sort('createdAt').limit(200);
+  const messages = await Message.find(filter)
+    .populate('sender', 'name role avatar')
+    .populate(REPLY_POPULATE)
+    .sort('createdAt')
+    .limit(200);
   res.json(messages);
 });
 
@@ -138,9 +145,18 @@ export const sendMessage = asyncHandler(async (req, res) => {
   const text = (req.body.text || '').trim();
   if (!text) throw new ApiError(400, 'Message cannot be empty');
 
-  const msg = await Message.create({ channel: req.params.id, sender: req.auth.id, text });
+  // Optional quoted reply — only accept an id that belongs to this channel.
+  let replyTo = null;
+  if (req.body.replyTo) {
+    const parent = await Message.findById(req.body.replyTo).select('channel');
+    if (parent && String(parent.channel) === String(req.params.id)) replyTo = parent._id;
+  }
+
+  const msg = await Message.create({ channel: req.params.id, sender: req.auth.id, text, replyTo });
   await Channel.findByIdAndUpdate(req.params.id, { lastMessageAt: new Date() });
-  const populated = await Message.findById(msg._id).populate('sender', 'name role avatar');
+  const populated = await Message.findById(msg._id)
+    .populate('sender', 'name role avatar')
+    .populate(REPLY_POPULATE);
 
   // Notify everyone else in the conversation (don't fail the send if this errors).
   notifyRecipients(channel, msg, populated.sender?.name || 'Someone').catch((e) =>

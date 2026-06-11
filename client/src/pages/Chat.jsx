@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Hash, Plus, Send, MessageSquarePlus, Search, Lock, UserPlus, Users } from 'lucide-react';
+import { Hash, Plus, Send, MessageSquarePlus, Search, Lock, UserPlus, Users, Reply, X } from 'lucide-react';
 import api from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { useUserOptions } from '../hooks/useFetch';
@@ -25,10 +25,12 @@ export default function Chat() {
   const [addOpen, setAddOpen] = useState(false); // add-people-to-channel modal
   const [userQuery, setUserQuery] = useState('');
   const [addQuery, setAddQuery] = useState('');
+  const [replyTo, setReplyTo] = useState(null); // message being replied to
 
   const activeRef = useRef(null);
   const lastTsRef = useRef(null);
   const bottomRef = useRef(null);
+  const inputRef = useRef(null);
   const seenRef = useRef(new Set()); // message ids already shown (dedupe poll/send races)
   const sendingRef = useRef(false); // synchronous guard against double-submit
 
@@ -129,6 +131,14 @@ export default function Chat() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  // Drop any in-progress reply when switching conversations.
+  useEffect(() => { setReplyTo(null); }, [activeId]);
+
+  const startReply = (m) => {
+    setReplyTo(m);
+    inputRef.current?.focus();
+  };
+
   const send = async (e) => {
     e.preventDefault();
     const body = text.trim();
@@ -136,9 +146,10 @@ export default function Chat() {
     sendingRef.current = true;
     setSending(true);
     try {
-      const { data } = await api.post(`/chat/channels/${activeId}/messages`, { text: body });
+      const { data } = await api.post(`/chat/channels/${activeId}/messages`, { text: body, replyTo: replyTo?._id || null });
       addMessages([data]); // deduped — a racing poll can't add it twice
       setText('');
+      setReplyTo(null);
       loadChannels(false);
     } finally {
       sendingRef.current = false;
@@ -248,13 +259,26 @@ export default function Chat() {
               {messages.map((m) => {
                 const mine = String(m.sender?._id) === String(user._id);
                 return (
-                  <div key={m._id} className="flex gap-3">
+                  <div key={m._id} className="group flex gap-3">
                     <Avatar name={m.sender?.name} size={36} />
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                       <div className="flex items-baseline gap-2">
                         <span className="text-sm font-semibold text-gray-900">{mine ? 'You' : m.sender?.name}</span>
                         <span className="text-[11px] text-gray-400">{format(new Date(m.createdAt), 'dd MMM, h:mm a')}</span>
+                        <button
+                          onClick={() => startReply(m)}
+                          className="ml-1 inline-flex items-center gap-1 text-[11px] font-medium text-gray-400 opacity-0 transition hover:text-brand-700 group-hover:opacity-100"
+                        >
+                          <Reply size={12} /> Reply
+                        </button>
                       </div>
+                      {m.replyTo && (
+                        <div className="mt-1 flex items-center gap-1.5 rounded border-l-2 border-brand-400 bg-gray-50 px-2 py-1 text-xs">
+                          <Reply size={11} className="shrink-0 text-brand-500" />
+                          <span className="font-semibold text-gray-600">{m.replyTo.sender?.name || 'Unknown'}</span>
+                          <span className="truncate text-gray-500">{m.replyTo.text}</span>
+                        </div>
+                      )}
                       <p className="whitespace-pre-wrap break-words text-sm text-gray-700">{m.text}</p>
                     </div>
                   </div>
@@ -263,13 +287,29 @@ export default function Chat() {
               <div ref={bottomRef} />
             </div>
 
-            <form onSubmit={send} className="flex items-center gap-2 border-t border-gray-200 px-4 py-3">
-              <input className="input" placeholder={`Message ${active.type === 'channel' ? '#' + active.displayName : active.displayName}`}
-                value={text} onChange={(e) => setText(e.target.value)} />
-              <button disabled={sending || !text.trim()} className="btn-primary">
-                {sending ? <Spinner className="h-5 w-5 text-white" /> : <Send size={18} />}
-              </button>
-            </form>
+            <div className="border-t border-gray-200">
+              {replyTo && (
+                <div className="flex items-center gap-2 bg-gray-50 px-4 py-2">
+                  <Reply size={14} className="shrink-0 text-brand-600" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-semibold text-gray-700">
+                      Replying to {String(replyTo.sender?._id) === String(user._id) ? 'yourself' : replyTo.sender?.name}
+                    </p>
+                    <p className="truncate text-xs text-gray-500">{replyTo.text}</p>
+                  </div>
+                  <button onClick={() => setReplyTo(null)} className="shrink-0 text-gray-400 hover:text-gray-700" title="Cancel reply">
+                    <X size={16} />
+                  </button>
+                </div>
+              )}
+              <form onSubmit={send} className="flex items-center gap-2 px-4 py-3">
+                <input ref={inputRef} className="input" placeholder={replyTo ? 'Type your reply…' : `Message ${active.type === 'channel' ? '#' + active.displayName : active.displayName}`}
+                  value={text} onChange={(e) => setText(e.target.value)} />
+                <button disabled={sending || !text.trim()} className="btn-primary">
+                  {sending ? <Spinner className="h-5 w-5 text-white" /> : <Send size={18} />}
+                </button>
+              </form>
+            </div>
           </>
         ) : (
           <EmptyState title="Select a conversation" hint="Pick a channel or start a direct message." icon={Hash} />
