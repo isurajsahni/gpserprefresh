@@ -7,7 +7,6 @@ import { useFetch } from '../hooks/useFetch';
 import { useAuth } from '../context/AuthContext';
 import { Loading, EmptyState, StatCard, Badge, Avatar, PageHeader } from '../components/ui/primitives';
 import Modal from '../components/ui/Modal';
-import { CHART_COLORS } from '../lib/badges';
 import { ROLE_LABELS } from '../lib/access';
 import { formatDate, timeAgo } from '../lib/format';
 import api from '../api/client';
@@ -73,6 +72,17 @@ export default function Dashboard() {
 
   const { kpis, charts, recentTasks, notices, upcomingHolidays, leaderboard, goodMorningFeed } = data;
 
+  // Project completion gauge: the ring fills with the *completed* share only, so
+  // in-progress work shows a partial (not full) ring.
+  const projDist = charts.projectStatusChart || [];
+  const projTotal = projDist.reduce((s, d) => s + d.value, 0);
+  const projDone = projDist.find((d) => d.name === 'Completed')?.value || 0;
+  const projPct = projTotal ? Math.round((projDone / projTotal) * 100) : 0;
+  const gaugeData = [
+    { name: 'Completed', value: projDone },
+    { name: 'Remaining', value: Math.max(0, projTotal - projDone) },
+  ];
+
   const postThought = async (e) => {
     e.preventDefault();
     if (thought.trim().length < 5) return;
@@ -125,32 +135,43 @@ export default function Dashboard() {
         </div>
 
         <div className="card-pad">
-          <h3 className="mb-4 font-semibold text-gray-900">Project status</h3>
-          {charts.projectStatusChart?.length ? (
-            <ResponsiveContainer width="100%" height={240}>
-              <PieChart>
-                <Pie
-                  data={charts.projectStatusChart}
-                  dataKey="value"
-                  nameKey="name"
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={55}
-                  outerRadius={85}
-                  paddingAngle={charts.projectStatusChart.length > 1 ? 2 : 0}
-                  stroke="none"
-                >
-                  {charts.projectStatusChart.map((entry, i) => (
-                    <Cell key={i} fill={STATUS_COLORS[entry.name] || CHART_COLORS[i % CHART_COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip />
-                <Legend
-                  wrapperStyle={{ fontSize: 12 }}
-                  formatter={(val, entry) => `${val} — ${entry?.payload?.value ?? ''}`}
-                />
-              </PieChart>
-            </ResponsiveContainer>
+          <h3 className="mb-4 font-semibold text-gray-900">Project completion</h3>
+          {projTotal ? (
+            <>
+              <div className="relative">
+                <ResponsiveContainer width="100%" height={200}>
+                  <PieChart>
+                    <Pie
+                      data={gaugeData}
+                      dataKey="value"
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={62}
+                      outerRadius={88}
+                      startAngle={90}
+                      endAngle={-270}
+                      stroke="none"
+                    >
+                      <Cell fill="#0b5d3b" />
+                      <Cell fill="#e7e4dc" />
+                    </Pie>
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+                  <span className="text-3xl font-bold text-gray-900">{projPct}%</span>
+                  <span className="text-xs text-gray-400">{projDone} of {projTotal} done</span>
+                </div>
+              </div>
+              <div className="mt-3 space-y-1.5">
+                {projDist.map((d) => (
+                  <div key={d.name} className="flex items-center gap-2 text-xs">
+                    <span className="h-2.5 w-2.5 rounded-full" style={{ background: STATUS_COLORS[d.name] || '#a8a294' }} />
+                    <span className="text-gray-600">{d.name}</span>
+                    <span className="ml-auto font-semibold text-gray-900">{d.value}</span>
+                  </div>
+                ))}
+              </div>
+            </>
           ) : (
             <EmptyState title="No projects" />
           )}
