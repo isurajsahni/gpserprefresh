@@ -236,7 +236,7 @@ export const attendanceSummary = asyncHandler(async (req, res) => {
         daysPresent: 1, daysLate: 1, daysAbsent: 1, records: 1,
         avgHours: { $round: [{ $cond: [{ $gt: ['$records', 0] }, { $divide: ['$totalHours', '$records'] }, 0] }, 1] },
         'employee.name': 1, 'employee.role': 1, 'employee.department': 1,
-        'employee.shiftStart': 1, 'employee.shiftEnd': 1,
+        'employee.shiftStart': 1, 'employee.shiftEnd': 1, 'employee.avatar': 1,
       },
     },
     { $sort: { totalHours: -1 } },

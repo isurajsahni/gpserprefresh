@@ -41,7 +41,7 @@ export default function Payroll() {
         <Table columns={['Employee', 'Month', 'Gross', 'Deductions', 'Net Pay', 'Status', '']}>
           {rows.map((p) => (
             <tr key={p._id} className="hover:bg-gray-50">
-              <td className="td"><div className="flex items-center gap-2"><Avatar name={p.employee?.name} size={30} /><span className="font-medium text-gray-900">{p.employee?.name}</span></div></td>
+              <td className="td"><div className="flex items-center gap-2"><Avatar name={p.employee?.name} src={p.employee?.avatar} size={30} /><span className="font-medium text-gray-900">{p.employee?.name}</span></div></td>
               <td className="td">{p.month}</td>
               <td className="td">{formatCurrency(p.gross)}</td>
               <td className="td text-red-600">-{formatCurrency(p.pf + p.tds + p.esi)}</td>
@@ -62,7 +62,7 @@ export default function Payroll() {
         {view && (
           <div>
             <div className="mb-4 flex items-center gap-3">
-              <Avatar name={view.employee?.name} size={44} />
+              <Avatar name={view.employee?.name} src={view.employee?.avatar} size={44} />
               <div><p className="font-semibold text-gray-900">{view.employee?.name}</p><p className="text-sm text-gray-500">{view.employee?.department}</p></div>
             </div>
             <div className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-gray-100 bg-gray-100 text-sm">

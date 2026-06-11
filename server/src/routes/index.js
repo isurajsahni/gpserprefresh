@@ -111,7 +111,7 @@ api.post('/attendance/heartbeat', requireModule('attendance'), attendanceHeartbe
   const { router } = crudRouter(Attendance, {
     module: 'attendance',
     ownerField: 'employee',
-    populate: [{ path: 'employee', select: 'name role department' }],
+    populate: [{ path: 'employee', select: 'name role department avatar' }],
     sort: '-date',
   });
   router.post('/checkin', requireModule('attendance'), checkIn);
@@ -124,7 +124,7 @@ api.post('/attendance/heartbeat', requireModule('attendance'), attendanceHeartbe
   const { router } = crudRouter(Leave, {
     module: 'leaves',
     ownerField: 'employee',
-    populate: [{ path: 'employee', select: 'name role department' }],
+    populate: [{ path: 'employee', select: 'name role department avatar' }],
     sort: '-appliedOn',
   });
   router.patch('/:id/status', requireModule('leaves'), setLeaveStatus);
@@ -136,7 +136,7 @@ api.post('/attendance/heartbeat', requireModule('attendance'), attendanceHeartbe
   const { router } = crudRouter(Expense, {
     module: 'finance',
     ownerField: 'employee',
-    populate: [{ path: 'employee', select: 'name role department' }],
+    populate: [{ path: 'employee', select: 'name role department avatar' }],
     sort: '-date',
   });
   router.patch('/:id/status', requireModule('finance'), setExpenseStatus);
@@ -153,7 +153,7 @@ api.use(
     module: 'projects',
     populate: [
       { path: 'assignees', select: 'name role avatar' },
-      { path: 'manager', select: 'name role' },
+      { path: 'manager', select: 'name role avatar' },
     ],
   }).router
 );
@@ -178,7 +178,7 @@ api.use(
   crudRouter(Payroll, {
     module: 'payroll',
     ownerField: 'employee',
-    populate: [{ path: 'employee', select: 'name role department' }],
+    populate: [{ path: 'employee', select: 'name role department avatar' }],
     sort: '-month',
   }).router
 );
@@ -189,7 +189,7 @@ api.use(
   crudRouter(Campaign, {
     module: 'campaigns',
     ownerField: 'assignedTo',
-    populate: [{ path: 'assignedTo', select: 'name role' }],
+    populate: [{ path: 'assignedTo', select: 'name role avatar' }],
   }).router
 );
 
@@ -199,7 +199,7 @@ api.use(
   crudRouter(Lead, {
     module: 'leads',
     ownerField: 'assignedTo',
-    populate: [{ path: 'assignedTo', select: 'name role' }],
+    populate: [{ path: 'assignedTo', select: 'name role avatar' }],
     sort: '-lastContact',
   }).router
 );
@@ -209,7 +209,7 @@ api.use(
   '/assets',
   crudRouter(Asset, {
     module: 'assets',
-    populate: [{ path: 'assignedTo', select: 'name role department' }],
+    populate: [{ path: 'assignedTo', select: 'name role department avatar' }],
     sort: 'name',
   }).router
 );
@@ -219,7 +219,7 @@ api.use(
   '/design-assets',
   crudRouter(DesignAsset, {
     module: 'design_library',
-    populate: [{ path: 'uploadedBy', select: 'name role' }],
+    populate: [{ path: 'uploadedBy', select: 'name role avatar' }],
     sort: '-uploadedOn',
   }).router
 );

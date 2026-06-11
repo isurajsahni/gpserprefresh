@@ -80,7 +80,7 @@ export default function Projects() {
 
               <div className="mt-3 flex items-center justify-between">
                 <div className="flex -space-x-2">
-                  {(p.assignees || []).slice(0, 4).map((a) => <div key={a._id} className="ring-2 ring-white rounded-full"><Avatar name={a.name} size={28} /></div>)}
+                  {(p.assignees || []).slice(0, 4).map((a) => <div key={a._id} className="ring-2 ring-white rounded-full"><Avatar name={a.name} src={a.avatar} size={28} /></div>)}
                   {(p.assignees || []).length === 0 && <span className="text-xs text-gray-400"><Users size={14} className="inline" /> Unassigned</span>}
                 </div>
                 {writable && (

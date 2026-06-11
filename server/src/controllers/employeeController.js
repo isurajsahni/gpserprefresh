@@ -118,6 +118,6 @@ export const deleteEmployeePermanent = asyncHandler(async (req, res) => {
 
 // Lightweight list for dropdowns (assignees, managers) — any authenticated user.
 export const userOptions = asyncHandler(async (_req, res) => {
-  const users = await User.find({ status: { $ne: 'Inactive' } }).select('name role department').sort('name');
+  const users = await User.find({ status: { $ne: 'Inactive' } }).select('name role department avatar').sort('name');
   res.json(users);
 });

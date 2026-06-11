@@ -341,7 +341,7 @@ export default function Chat() {
         <div className="max-h-72 space-y-1 overflow-y-auto">
           {filteredUsers.map((u) => (
             <button key={u._id} onClick={() => startDm(u._id)} className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left hover:bg-gray-50">
-              <Avatar name={u.name} size={32} />
+              <Avatar name={u.name} src={u.avatar} size={32} />
               <div><p className="text-sm font-medium text-gray-900">{u.name}</p><p className="text-xs text-gray-400">{u.department}</p></div>
             </button>
           ))}
@@ -358,7 +358,7 @@ export default function Chat() {
         <div className="max-h-72 space-y-1 overflow-y-auto">
           {addableUsers.map((u) => (
             <button key={u._id} onClick={() => addMember(u._id)} className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left hover:bg-gray-50">
-              <Avatar name={u.name} size={32} />
+              <Avatar name={u.name} src={u.avatar} size={32} />
               <div className="min-w-0 flex-1"><p className="text-sm font-medium text-gray-900">{u.name}</p><p className="text-xs text-gray-400">{u.department}</p></div>
               <UserPlus size={16} className="text-brand-700" />
             </button>

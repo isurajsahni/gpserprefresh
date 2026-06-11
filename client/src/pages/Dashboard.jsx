@@ -219,7 +219,7 @@ export default function Dashboard() {
                     r.rank === 1 ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-500'}`}>
                     {r.rank}
                   </span>
-                  <Avatar name={r.employee?.name} size={32} />
+                  <Avatar name={r.employee?.name} src={r.employee?.avatar} size={32} />
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium text-gray-900">{r.employee?.name}</p>
                     <p className="text-xs text-gray-400">{ROLE_LABELS[r.employee?.role]}</p>
@@ -256,7 +256,7 @@ export default function Dashboard() {
               {goodMorningFeed?.length ? (
                 goodMorningFeed.map((g) => (
                   <div key={g._id} className="flex gap-3">
-                    <Avatar name={g.user?.name} size={34} />
+                    <Avatar name={g.user?.name} src={g.user?.avatar} size={34} />
                     <div className="flex-1 rounded-xl bg-gray-50 px-4 py-2.5">
                       <div className="flex items-center justify-between">
                         <p className="text-sm font-semibold text-gray-900">{g.user?.name}</p>

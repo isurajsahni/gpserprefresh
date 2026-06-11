@@ -50,7 +50,7 @@ export default function Finance() {
         <Table columns={[canApprove ? 'Employee' : null, 'Title', 'Category', 'Amount', 'Date', 'Receipt', 'Status', canApprove ? 'Action' : null].filter((c) => c !== null)}>
           {expenses.map((ex) => (
             <tr key={ex._id} className="hover:bg-gray-50">
-              {canApprove && <td className="td"><div className="flex items-center gap-2"><Avatar name={ex.employee?.name} size={28} /><span className="font-medium text-gray-900">{ex.employee?.name}</span></div></td>}
+              {canApprove && <td className="td"><div className="flex items-center gap-2"><Avatar name={ex.employee?.name} src={ex.employee?.avatar} size={28} /><span className="font-medium text-gray-900">{ex.employee?.name}</span></div></td>}
               <td className="td font-medium text-gray-900">{ex.title}</td>
               <td className="td"><span className="badge-gray">{ex.category}</span></td>
               <td className="td font-semibold">{formatCurrency(ex.amount)}</td>

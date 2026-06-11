@@ -72,7 +72,7 @@ export default function Tasks() {
                       {t.project?.name && <p className="mt-1 text-xs text-gray-400">{t.project.name}</p>}
                       <div className="mt-2 flex items-center justify-between">
                         <div className="flex items-center gap-1.5">
-                          {t.assignee ? <Avatar name={t.assignee.name} size={24} /> : <span className="text-xs text-gray-400">Unassigned</span>}
+                          {t.assignee ? <Avatar name={t.assignee.name} src={t.assignee.avatar} size={24} /> : <span className="text-xs text-gray-400">Unassigned</span>}
                         </div>
                         <span className="flex items-center gap-1 text-xs text-gray-400"><Clock size={12} /> {t.timeLogged}h</span>
                       </div>

@@ -57,7 +57,7 @@ export default function WorkHours() {
               <tr key={r._id} className="hover:bg-gray-50">
                 <td className="td">
                   <div className="flex items-center gap-3">
-                    <Avatar name={r.employee.name} size={32} />
+                    <Avatar name={r.employee.name} src={r.employee.avatar} size={32} />
                     <div>
                       <p className="font-medium text-gray-900">{r.employee.name}</p>
                       <p className="text-xs text-gray-400">{ROLE_LABELS[r.employee.role]} · {r.employee.department}</p>

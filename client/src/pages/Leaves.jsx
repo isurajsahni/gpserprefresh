@@ -54,7 +54,7 @@ export default function Leaves() {
           {leaves.map((l) => (
             <tr key={l._id} className="hover:bg-gray-50">
               {canApprove && (
-                <td className="td"><div className="flex items-center gap-2"><Avatar name={l.employee?.name} size={30} /><span className="font-medium text-gray-900">{l.employee?.name}</span></div></td>
+                <td className="td"><div className="flex items-center gap-2"><Avatar name={l.employee?.name} src={l.employee?.avatar} size={30} /><span className="font-medium text-gray-900">{l.employee?.name}</span></div></td>
               )}
               <td className="td">{l.type}</td>
               <td className="td">{formatDate(l.from)}</td>

@@ -160,7 +160,7 @@ export default function Attendance() {
             <tr key={r._id} className="hover:bg-gray-50">
               {teamView && (
                 <td className="td">
-                  <div className="flex items-center gap-2"><Avatar name={r.employee?.name} size={30} /><span className="font-medium text-gray-900">{r.employee?.name}</span></div>
+                  <div className="flex items-center gap-2"><Avatar name={r.employee?.name} src={r.employee?.avatar} size={30} /><span className="font-medium text-gray-900">{r.employee?.name}</span></div>
                 </td>
               )}
               <td className="td">{formatDate(r.date)}</td>
