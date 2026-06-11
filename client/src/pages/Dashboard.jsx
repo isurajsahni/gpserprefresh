@@ -72,15 +72,17 @@ export default function Dashboard() {
 
   const { kpis, charts, recentTasks, notices, upcomingHolidays, leaderboard, goodMorningFeed } = data;
 
-  // Project completion gauge: the ring fills with the *completed* share only, so
-  // in-progress work shows a partial (not full) ring.
+  // Project progress gauge — weighted so in-progress work counts as partial
+  // progress (not 0% until fully done). The ring fills to the average progress.
+  const STATUS_WEIGHT = { 'To Do': 0, 'In Progress': 0.5, 'Under Review': 0.85, Completed: 1 };
   const projDist = charts.projectStatusChart || [];
   const projTotal = projDist.reduce((s, d) => s + d.value, 0);
   const projDone = projDist.find((d) => d.name === 'Completed')?.value || 0;
-  const projPct = projTotal ? Math.round((projDone / projTotal) * 100) : 0;
+  const projScore = projDist.reduce((s, d) => s + (STATUS_WEIGHT[d.name] ?? 0) * d.value, 0);
+  const projPct = projTotal ? Math.round((projScore / projTotal) * 100) : 0;
   const gaugeData = [
-    { name: 'Completed', value: projDone },
-    { name: 'Remaining', value: Math.max(0, projTotal - projDone) },
+    { name: 'Progress', value: projPct },
+    { name: 'Remaining', value: 100 - projPct },
   ];
 
   const postThought = async (e) => {
@@ -135,7 +137,7 @@ export default function Dashboard() {
         </div>
 
         <div className="card-pad">
-          <h3 className="mb-4 font-semibold text-gray-900">Project completion</h3>
+          <h3 className="mb-4 font-semibold text-gray-900">Project progress</h3>
           {projTotal ? (
             <>
               <div className="relative">
@@ -159,7 +161,7 @@ export default function Dashboard() {
                 </ResponsiveContainer>
                 <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
                   <span className="text-3xl font-bold text-gray-900">{projPct}%</span>
-                  <span className="text-xs text-gray-400">{projDone} of {projTotal} done</span>
+                  <span className="text-xs text-gray-400">{projDone} of {projTotal} completed</span>
                 </div>
               </div>
               <div className="mt-3 space-y-1.5">
