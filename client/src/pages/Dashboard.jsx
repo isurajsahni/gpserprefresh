@@ -79,13 +79,26 @@ export default function Dashboard() {
           {charts.projectStatusChart?.length ? (
             <ResponsiveContainer width="100%" height={240}>
               <PieChart>
-                <Pie data={charts.projectStatusChart} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label>
+                <Pie
+                  data={charts.projectStatusChart}
+                  dataKey="value"
+                  nameKey="name"
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={55}
+                  outerRadius={85}
+                  paddingAngle={charts.projectStatusChart.length > 1 ? 2 : 0}
+                  stroke="none"
+                >
                   {charts.projectStatusChart.map((_, i) => (
                     <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
                   ))}
                 </Pie>
                 <Tooltip />
-                <Legend wrapperStyle={{ fontSize: 12 }} />
+                <Legend
+                  wrapperStyle={{ fontSize: 12 }}
+                  formatter={(val, entry) => `${val} — ${entry?.payload?.value ?? ''}`}
+                />
               </PieChart>
             </ResponsiveContainer>
           ) : (
