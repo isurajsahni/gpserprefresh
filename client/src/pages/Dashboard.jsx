@@ -6,6 +6,7 @@ import {
 import { useFetch } from '../hooks/useFetch';
 import { useAuth } from '../context/AuthContext';
 import { Loading, EmptyState, StatCard, Badge, Avatar, PageHeader } from '../components/ui/primitives';
+import Modal from '../components/ui/Modal';
 import { CHART_COLORS } from '../lib/badges';
 import { ROLE_LABELS } from '../lib/access';
 import { formatDate, timeAgo } from '../lib/format';
@@ -17,6 +18,44 @@ export default function Dashboard() {
   const [thought, setThought] = useState('');
   const [posting, setPosting] = useState(false);
   const [postMsg, setPostMsg] = useState('');
+  const [noticeForm, setNoticeForm] = useState(null); // null = closed
+  const [holidayForm, setHolidayForm] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [saveErr, setSaveErr] = useState('');
+
+  // Who may post each item (mirrors the backend route guards).
+  const canNotice = user?.role === 'super_admin' || user?.role === 'operation';
+  const canHoliday = user?.role === 'super_admin';
+
+  const saveNotice = async (e) => {
+    e.preventDefault();
+    setSaveErr('');
+    setSaving(true);
+    try {
+      await api.post('/notices', noticeForm);
+      setNoticeForm(null);
+      refetch();
+    } catch (err) {
+      setSaveErr(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const saveHoliday = async (e) => {
+    e.preventDefault();
+    setSaveErr('');
+    setSaving(true);
+    try {
+      await api.post('/holidays', holidayForm);
+      setHolidayForm(null);
+      refetch();
+    } catch (err) {
+      setSaveErr(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   if (loading) return <Loading label="Building your dashboard…" />;
   if (!data) return <EmptyState title="No dashboard data" />;
@@ -206,6 +245,11 @@ export default function Dashboard() {
             <div className="flex items-center gap-2 border-b border-gray-100 px-5 py-4">
               <Icons.Megaphone size={18} className="text-brand-700" />
               <h3 className="font-semibold text-gray-900">Notice board</h3>
+              {canNotice && (
+                <button onClick={() => { setSaveErr(''); setNoticeForm({ title: '', body: '', priority: 'normal', pinned: false }); }} className="btn-ghost btn-sm ml-auto">
+                  <Icons.Plus size={16} /> Add
+                </button>
+              )}
             </div>
             <div className="divide-y divide-gray-50">
               {notices?.length ? (
@@ -229,6 +273,11 @@ export default function Dashboard() {
             <div className="flex items-center gap-2 border-b border-gray-100 px-5 py-4">
               <Icons.CalendarHeart size={18} className="text-green-600" />
               <h3 className="font-semibold text-gray-900">Upcoming holidays</h3>
+              {canHoliday && (
+                <button onClick={() => { setSaveErr(''); setHolidayForm({ name: '', date: '' }); }} className="btn-ghost btn-sm ml-auto">
+                  <Icons.Plus size={16} /> Add
+                </button>
+              )}
             </div>
             <div className="divide-y divide-gray-50">
               {upcomingHolidays?.length ? (
@@ -245,6 +294,37 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      {/* Post a notice */}
+      <Modal open={!!noticeForm} onClose={() => setNoticeForm(null)} title="Post a notice"
+        footer={<><button onClick={() => setNoticeForm(null)} className="btn-secondary">Cancel</button><button form="notice-form" disabled={saving} className="btn-primary">Post</button></>}>
+        {saveErr && <div className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{saveErr}</div>}
+        <form id="notice-form" onSubmit={saveNotice} className="space-y-3">
+          <div><label className="label">Title</label><input required className="input" value={noticeForm?.title || ''} onChange={(e) => setNoticeForm({ ...noticeForm, title: e.target.value })} /></div>
+          <div><label className="label">Details <span className="font-normal text-gray-400">(optional)</span></label><textarea rows={3} className="input" value={noticeForm?.body || ''} onChange={(e) => setNoticeForm({ ...noticeForm, body: e.target.value })} /></div>
+          <div className="flex items-end gap-4">
+            <div className="flex-1"><label className="label">Priority</label>
+              <select className="input" value={noticeForm?.priority || 'normal'} onChange={(e) => setNoticeForm({ ...noticeForm, priority: e.target.value })}>
+                <option value="normal">Normal</option>
+                <option value="urgent">Urgent</option>
+              </select>
+            </div>
+            <label className="flex items-center gap-2 pb-2 text-sm text-gray-700">
+              <input type="checkbox" checked={!!noticeForm?.pinned} onChange={(e) => setNoticeForm({ ...noticeForm, pinned: e.target.checked })} /> Pin to top
+            </label>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Add a holiday */}
+      <Modal open={!!holidayForm} onClose={() => setHolidayForm(null)} title="Add a holiday"
+        footer={<><button onClick={() => setHolidayForm(null)} className="btn-secondary">Cancel</button><button form="holiday-form" disabled={saving} className="btn-primary">Add</button></>}>
+        {saveErr && <div className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{saveErr}</div>}
+        <form id="holiday-form" onSubmit={saveHoliday} className="space-y-3">
+          <div><label className="label">Holiday name</label><input required className="input" placeholder="e.g. Diwali" value={holidayForm?.name || ''} onChange={(e) => setHolidayForm({ ...holidayForm, name: e.target.value })} /></div>
+          <div><label className="label">Date</label><input type="date" required className="input" value={holidayForm?.date || ''} onChange={(e) => setHolidayForm({ ...holidayForm, date: e.target.value })} /></div>
+        </form>
+      </Modal>
     </div>
   );
 }
