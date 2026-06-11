@@ -51,6 +51,7 @@ import {
   createNotification,
 } from '../controllers/notificationController.js';
 import { dashboardStats } from '../controllers/dashboardController.js';
+import { uploadImageHandler } from '../controllers/uploadController.js';
 import { reportsOverview, attendanceReport } from '../controllers/reportsController.js';
 import {
   listChannels,
@@ -84,6 +85,9 @@ api.get('/reports/attendance', requireModule('reports'), attendanceReport);
 
 // ---- User options (dropdowns) ----
 api.get('/users/options', userOptions);
+
+// ---- Image uploads (any authenticated user) ----
+api.post('/uploads', uploadImageHandler);
 
 // ---- Employees (custom controller) ----
 {

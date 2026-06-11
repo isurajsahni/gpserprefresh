@@ -6,11 +6,12 @@ import { getAccess } from '../lib/access';
 import { Loading, EmptyState, PageHeader, Badge, Avatar, StatCard } from '../components/ui/primitives';
 import { Table } from '../components/ui/Table';
 import Modal from '../components/ui/Modal';
+import ImageUpload from '../components/ui/ImageUpload';
 import { formatCurrency, formatDate } from '../lib/format';
 import api from '../api/client';
 
 const CATEGORIES = ['Infrastructure', 'Marketing', 'Software', 'Operations'];
-const empty = { title: '', amount: 0, category: 'Operations', date: '', receipt: false };
+const empty = { title: '', amount: 0, category: 'Operations', date: '', receiptUrl: '' };
 
 export default function Finance() {
   const { user } = useAuth();
@@ -23,7 +24,7 @@ export default function Finance() {
 
   const submit = async (e) => {
     e.preventDefault(); setError('');
-    try { await api.post('/expenses', form); setModal(false); setForm(empty); refetch(); }
+    try { await api.post('/expenses', { ...form, receipt: !!form.receiptUrl }); setModal(false); setForm(empty); refetch(); }
     catch (err) { setError(err.message); }
   };
   const setStatus = async (id, status) => { await api.patch(`/expenses/${id}/status`, { status }); refetch(); };
@@ -54,7 +55,17 @@ export default function Finance() {
               <td className="td"><span className="badge-gray">{ex.category}</span></td>
               <td className="td font-semibold">{formatCurrency(ex.amount)}</td>
               <td className="td">{formatDate(ex.date)}</td>
-              <td className="td">{ex.receipt ? <Badge status="Approved">Yes</Badge> : <Badge status="Inactive">No</Badge>}</td>
+              <td className="td">
+                {ex.receiptUrl ? (
+                  <a href={ex.receiptUrl} target="_blank" rel="noreferrer" className="inline-block">
+                    <img src={ex.receiptUrl} alt="receipt" className="h-9 w-9 rounded border border-gray-200 object-cover hover:opacity-80" />
+                  </a>
+                ) : ex.receipt ? (
+                  <Badge status="Approved">Yes</Badge>
+                ) : (
+                  <Badge status="Inactive">No</Badge>
+                )}
+              </td>
               <td className="td"><Badge status={ex.status} /></td>
               {canApprove && (
                 <td className="td">
@@ -81,7 +92,10 @@ export default function Finance() {
             <div><label className="label">Category</label><select className="input" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>{CATEGORIES.map((c) => <option key={c}>{c}</option>)}</select></div>
           </div>
           <div><label className="label">Date</label><input type="date" className="input" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} /></div>
-          <label className="flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" checked={form.receipt} onChange={(e) => setForm({ ...form, receipt: e.target.checked })} /> Receipt attached</label>
+          <div>
+            <label className="label">Receipt / screenshot <span className="font-normal text-gray-400">(optional)</span></label>
+            <ImageUpload value={form.receiptUrl} onChange={(receiptUrl) => setForm({ ...form, receiptUrl })} folder="receipts" label="Attach receipt" />
+          </div>
         </form>
       </Modal>
     </div>

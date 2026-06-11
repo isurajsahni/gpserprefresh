@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { canWrite } from '../lib/access';
 import { Loading, EmptyState, PageHeader } from '../components/ui/primitives';
 import Modal from '../components/ui/Modal';
+import ImageUpload from '../components/ui/ImageUpload';
 import { formatDate } from '../lib/format';
 import api from '../api/client';
 
@@ -57,9 +58,15 @@ export default function DesignLibrary() {
             const Icon = TYPE_ICON[a.type] || FileImage;
             return (
               <div key={a._id} className="card-pad">
-                <div className="flex h-24 items-center justify-center rounded-lg bg-gradient-to-br from-brand-50 to-gray-50 text-brand-600">
-                  <Icon size={36} />
-                </div>
+                {a.url ? (
+                  <a href={a.url} target="_blank" rel="noreferrer" className="block h-24 overflow-hidden rounded-lg border border-gray-100">
+                    <img src={a.url} alt={a.name} className="h-24 w-full object-cover" />
+                  </a>
+                ) : (
+                  <div className="flex h-24 items-center justify-center rounded-lg bg-gradient-to-br from-brand-50 to-gray-50 text-brand-600">
+                    <Icon size={36} />
+                  </div>
+                )}
                 <div className="mt-3 flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <p className="truncate font-semibold text-gray-900">{a.name}</p>
@@ -91,7 +98,11 @@ export default function DesignLibrary() {
           <div><label className="label">Size</label><input className="input" placeholder="e.g. 2.4 MB" value={form.size} onChange={(e) => setForm({ ...form, size: e.target.value })} /></div>
           <div><label className="label">Version</label><input className="input" value={form.version} onChange={(e) => setForm({ ...form, version: e.target.value })} /></div>
           <div className="sm:col-span-2"><label className="label">Tags (comma separated)</label><input className="input" value={form.tags} onChange={(e) => setForm({ ...form, tags: e.target.value })} /></div>
-          <div className="sm:col-span-2"><label className="label">URL</label><input className="input" placeholder="https://…" value={form.url} onChange={(e) => setForm({ ...form, url: e.target.value })} /></div>
+          <div className="sm:col-span-2">
+            <label className="label">Image / screenshot</label>
+            <ImageUpload value={form.url} onChange={(url) => setForm({ ...form, url })} folder="design" label="Upload image" />
+          </div>
+          <div className="sm:col-span-2"><label className="label">…or paste a URL</label><input className="input" placeholder="https://…" value={form.url} onChange={(e) => setForm({ ...form, url: e.target.value })} /></div>
         </form>
       </Modal>
     </div>

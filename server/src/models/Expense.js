@@ -13,6 +13,7 @@ const expenseSchema = new mongoose.Schema(
     date: { type: Date, default: Date.now },
     status: { type: String, enum: ['Pending', 'Approved', 'Rejected'], default: 'Pending' },
     receipt: { type: Boolean, default: false },
+    receiptUrl: { type: String, default: '' }, // uploaded receipt image
   },
   { timestamps: true }
 );
