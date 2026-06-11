@@ -74,7 +74,8 @@ function closeStaleSession(record) {
   const lastSeen = record.lastSeen || record.updatedAt || new Date();
   if (Date.now() - new Date(lastSeen).getTime() <= STALE_MS) return false;
   const seen = new Date(lastSeen);
-  const mins = record.checkIn ? minutesFrom(record.checkIn, seen) : 0;
+  const startStr = record.sessionStart || record.checkIn;
+  const mins = startStr ? minutesFrom(startStr, seen) : 0;
   record.hoursWorked = Math.round((Number(record.hoursWorked || 0) + mins / 60) * 10) / 10;
   record.checkOut = timeStr(seen);
   record.clockedIn = false;
@@ -85,8 +86,9 @@ function closeStaleSession(record) {
 // Credits hours up to lastSeen when known, otherwise closes with no added hours.
 function finalizeOrphan(record) {
   const seen = record.lastSeen ? new Date(record.lastSeen) : null;
-  if (seen && record.checkIn) {
-    record.hoursWorked = Math.round((Number(record.hoursWorked || 0) + minutesFrom(record.checkIn, seen) / 60) * 10) / 10;
+  const startStr = record.sessionStart || record.checkIn;
+  if (seen && startStr) {
+    record.hoursWorked = Math.round((Number(record.hoursWorked || 0) + minutesFrom(startStr, seen) / 60) * 10) / 10;
     record.checkOut = timeStr(seen);
   } else {
     record.checkOut = record.checkIn || '';
@@ -139,12 +141,13 @@ export const checkIn = asyncHandler(async (req, res) => {
 
   if (!record) {
     record = await Attendance.create({
-      employee: req.auth.id, date: start, checkIn: checkInStr, status: late, clockedIn: true, lastSeen: now,
+      employee: req.auth.id, date: start, checkIn: checkInStr, sessionStart: checkInStr, status: late, clockedIn: true, lastSeen: now,
     });
   } else {
-    // New session later in the same day — keep accumulated hours and the day's
-    // status (don't downgrade a Late day to Present).
-    record.checkIn = checkInStr;
+    // New session later in the same day — keep the day's FIRST check-in (display)
+    // and accumulated hours/status; only move the session start for hour math.
+    if (!record.checkIn) record.checkIn = checkInStr; // legacy safety
+    record.sessionStart = checkInStr;
     record.checkOut = '';
     record.clockedIn = true;
     record.lastSeen = now;
@@ -166,7 +169,8 @@ export const checkOut = asyncHandler(async (req, res) => {
   }
 
   const now = new Date();
-  const mins = minutesFrom(record.checkIn, now);
+  const startStr = record.sessionStart || record.checkIn; // current session start, not the day's first check-in
+  const mins = minutesFrom(startStr, now);
   record.checkOut = timeStr(now);
   record.hoursWorked = Math.round((Number(record.hoursWorked || 0) + mins / 60) * 10) / 10;
   record.clockedIn = false;

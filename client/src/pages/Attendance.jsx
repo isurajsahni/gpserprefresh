@@ -138,7 +138,7 @@ export default function Attendance() {
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand-500 opacity-60" />
             <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-brand-600" />
           </span>
-          On the clock since {todayRec.checkIn} · <SessionTimer checkIn={todayRec.checkIn} />
+          On the clock since {todayRec.sessionStart || todayRec.checkIn} · <SessionTimer checkIn={todayRec.sessionStart || todayRec.checkIn} />
           <span className="text-brand-600/70">— closing the app clocks you out automatically</span>
         </div>
       )}

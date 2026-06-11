@@ -4,7 +4,8 @@ const attendanceSchema = new mongoose.Schema(
   {
     employee: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     date: { type: Date, required: true },
-    checkIn: { type: String, default: '' },
+    checkIn: { type: String, default: '' }, // FIRST check-in of the day (what's displayed)
+    sessionStart: { type: String, default: '' }, // start of the current open session (for hour math)
     checkOut: { type: String, default: '' },
     status: { type: String, enum: ['Present', 'Late', 'Absent'], default: 'Present' },
     hoursWorked: { type: Number, default: 0 },
