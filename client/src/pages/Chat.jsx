@@ -29,8 +29,25 @@ export default function Chat() {
   const activeRef = useRef(null);
   const lastTsRef = useRef(null);
   const bottomRef = useRef(null);
+  const seenRef = useRef(new Set()); // message ids already shown (dedupe poll/send races)
+  const sendingRef = useRef(false); // synchronous guard against double-submit
 
   const active = channels.find((c) => c._id === activeId);
+
+  // Append messages we don't already have (dedupe by _id), advancing the poll
+  // cursor. Returns the genuinely-new messages so callers can chime once only.
+  const addMessages = useCallback((incoming) => {
+    const fresh = incoming.filter((m) => m && !seenRef.current.has(m._id));
+    if (!fresh.length) return [];
+    fresh.forEach((m) => seenRef.current.add(m._id));
+    setMessages((prev) => [...prev, ...fresh]);
+    for (const m of fresh) {
+      if (!lastTsRef.current || new Date(m.createdAt) > new Date(lastTsRef.current)) {
+        lastTsRef.current = m.createdAt;
+      }
+    }
+    return fresh;
+  }, []);
 
   // Load channel list (and auto-select the first on initial load).
   const loadChannels = useCallback(async (selectFirst = false) => {
@@ -83,6 +100,7 @@ export default function Chat() {
     const fullLoad = async () => {
       const { data } = await api.get(`/chat/channels/${activeId}/messages`);
       if (!alive) return;
+      seenRef.current = new Set(data.map((m) => m._id));
       setMessages(data);
       lastTsRef.current = data.length ? data[data.length - 1].createdAt : null;
       markRead(activeId);
@@ -92,11 +110,10 @@ export default function Chat() {
       if (!lastTsRef.current) return fullLoad();
       const { data } = await api.get(`/chat/channels/${activeId}/messages?after=${encodeURIComponent(lastTsRef.current)}`);
       if (!alive || !data.length) return;
-      setMessages((prev) => [...prev, ...data]);
-      lastTsRef.current = data[data.length - 1].createdAt;
+      const fresh = addMessages(data);
       // A message from someone else arrived in the open conversation: chime and
       // mark it read (so the unread badge/total don't also count it).
-      if (data.some((m) => String(m.sender?._id) !== String(user._id))) {
+      if (fresh.some((m) => String(m.sender?._id) !== String(user._id))) {
         playChatChime();
         markRead(activeId);
       }
@@ -105,7 +122,7 @@ export default function Chat() {
     fullLoad();
     const id = setInterval(poll, 3000);
     return () => { alive = false; clearInterval(id); };
-  }, [activeId, markRead, user._id]);
+  }, [activeId, markRead, user._id, addMessages]);
 
   // Auto-scroll to newest message.
   useEffect(() => {
@@ -115,15 +132,16 @@ export default function Chat() {
   const send = async (e) => {
     e.preventDefault();
     const body = text.trim();
-    if (!body || sending) return;
+    if (!body || sendingRef.current) return; // ref guard: blocks a fast double-submit synchronously
+    sendingRef.current = true;
     setSending(true);
     try {
       const { data } = await api.post(`/chat/channels/${activeId}/messages`, { text: body });
-      setMessages((prev) => [...prev, data]);
-      lastTsRef.current = data.createdAt;
+      addMessages([data]); // deduped — a racing poll can't add it twice
       setText('');
       loadChannels(false);
     } finally {
+      sendingRef.current = false;
       setSending(false);
     }
   };
