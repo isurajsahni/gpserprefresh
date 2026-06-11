@@ -48,9 +48,11 @@ function todayRange() {
   return { start, end };
 }
 
-// A session is considered abandoned if the client hasn't sent a heartbeat for
-// this long — i.e. the app/tab was closed. Heartbeat runs every ~25s.
-const STALE_MS = 75 * 1000;
+// A session is considered abandoned only after this long without any heartbeat
+// — i.e. the app/tab was genuinely closed. Kept well above the ~20s heartbeat
+// interval so cold starts, network blips, and briefly-backgrounded tabs (whose
+// timers the browser throttles) don't cause a false auto clock-out.
+const STALE_MS = 3 * 60 * 1000; // 3 minutes
 
 // Check-ins up to this time of day (minutes since midnight) are never late.
 const LATE_GRACE_UNTIL = 10 * 60; // 10:00 AM
@@ -177,8 +179,13 @@ export const attendanceHeartbeat = asyncHandler(async (req, res) => {
   const { start, end } = todayRange();
   const record = await Attendance.findOne({ employee: req.auth.id, date: { $gte: start, $lt: end } });
   if (!record) return res.json(null);
+  // A heartbeat is proof the user is present, so ALWAYS refresh — never close
+  // here. (After a server cold start the first heartbeat arrives with an old
+  // lastSeen; closing on that would wrongly clock out a present user.) Stale
+  // closing is left to the background sweep, which only fires when heartbeats
+  // have genuinely stopped.
   if (record.clockedIn) {
-    if (!closeStaleSession(record)) record.lastSeen = new Date();
+    record.lastSeen = new Date();
     await record.save();
   }
   res.json(record);

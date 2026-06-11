@@ -23,13 +23,20 @@ export default function AutoClockout() {
       }
     };
     beat();
-    const id = setInterval(beat, 25000);
+    const id = setInterval(beat, 20000);
     window.addEventListener('attendance-changed', beat);
+    // Browsers throttle/freeze timers in background tabs — beat the moment the
+    // tab becomes visible or regains focus so the session is refreshed promptly.
+    const onVisible = () => { if (document.visibilityState === 'visible') beat(); };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', beat);
 
     return () => {
       alive = false;
       clearInterval(id);
       window.removeEventListener('attendance-changed', beat);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', beat);
     };
   }, []);
 
