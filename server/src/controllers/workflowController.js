@@ -52,6 +52,9 @@ function todayRange() {
 // this long — i.e. the app/tab was closed. Heartbeat runs every ~25s.
 const STALE_MS = 75 * 1000;
 
+// Check-ins up to this time of day (minutes since midnight) are never late.
+const LATE_GRACE_UNTIL = 10 * 60; // 10:00 AM
+
 const timeStr = (d) => d.toTimeString().slice(0, 5);
 
 // Minutes elapsed from an "HH:mm" start to a Date (handles crossing midnight).
@@ -76,12 +79,38 @@ function closeStaleSession(record) {
   return true;
 }
 
-// Background sweep: close any sessions whose heartbeat has lapsed, so hours are
-// finalized even if the user never reopens the app. Called on an interval.
+// Finalize an abandoned open session from a previous day (checked in, never out).
+// Credits hours up to lastSeen when known, otherwise closes with no added hours.
+function finalizeOrphan(record) {
+  const seen = record.lastSeen ? new Date(record.lastSeen) : null;
+  if (seen && record.checkIn) {
+    record.hoursWorked = Math.round((Number(record.hoursWorked || 0) + minutesFrom(record.checkIn, seen) / 60) * 10) / 10;
+    record.checkOut = timeStr(seen);
+  } else {
+    record.checkOut = record.checkIn || '';
+  }
+  record.clockedIn = false;
+}
+
+// Background sweep: finalize any sessions that are no longer live, so the list
+// never shows people as "on the clock" when they aren't. Called on an interval.
 export async function sweepStaleSessions() {
+  // 1) Close live sessions whose heartbeat has lapsed (app/tab closed).
   const live = await Attendance.find({ clockedIn: true });
   for (const r of live) {
     if (closeStaleSession(r)) await r.save();
+  }
+  // 2) Finalize leftover open sessions from previous days (checked in, never out) —
+  //    includes old records created before heartbeat tracking existed.
+  const { start } = todayRange();
+  const orphans = await Attendance.find({
+    date: { $lt: start },
+    checkIn: { $ne: '' },
+    $or: [{ checkOut: '' }, { checkOut: null }, { checkOut: { $exists: false } }],
+  });
+  for (const r of orphans) {
+    finalizeOrphan(r);
+    await r.save();
   }
 }
 
@@ -98,10 +127,13 @@ export const checkIn = asyncHandler(async (req, res) => {
 
   const now = new Date();
   const checkInStr = timeStr(now);
-  // Late if check-in is after the user's assigned shift start (default 09:30).
+  // Grace period: a check-in any time up to 10:00 AM is never marked late, even
+  // if the assigned shift starts earlier. Late only applies after the later of
+  // the user's shift start and the 10:00 grace cutoff.
   const me = await User.findById(req.auth.id).select('shiftStart');
   const [shiftH, shiftM] = (me?.shiftStart || '09:30').split(':').map(Number);
-  const late = now.getHours() * 60 + now.getMinutes() > shiftH * 60 + shiftM ? 'Late' : 'Present';
+  const cutoffMins = Math.max(shiftH * 60 + shiftM, LATE_GRACE_UNTIL);
+  const late = now.getHours() * 60 + now.getMinutes() > cutoffMins ? 'Late' : 'Present';
 
   if (!record) {
     record = await Attendance.create({

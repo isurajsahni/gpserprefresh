@@ -165,7 +165,21 @@ export default function Attendance() {
               )}
               <td className="td">{formatDate(r.date)}</td>
               <td className="td">{r.checkIn || '—'}</td>
-              <td className="td">{r.checkOut || '—'}</td>
+              <td className="td">
+                {r.checkOut ? (
+                  r.checkOut
+                ) : r.clockedIn ? (
+                  <span className="inline-flex items-center gap-1.5 font-medium text-brand-700">
+                    <span className="relative flex h-2 w-2">
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand-500 opacity-60" />
+                      <span className="relative inline-flex h-2 w-2 rounded-full bg-brand-600" />
+                    </span>
+                    Active
+                  </span>
+                ) : (
+                  '—'
+                )}
+              </td>
               <td className="td">{r.hoursWorked ? `${r.hoursWorked}h` : '—'}</td>
               <td className="td"><Badge status={r.status} /></td>
               {isAdmin && (
