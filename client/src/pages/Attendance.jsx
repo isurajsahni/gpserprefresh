@@ -7,7 +7,10 @@ import { Loading, EmptyState, PageHeader, Badge, Avatar, StatCard } from '../com
 import { Table } from '../components/ui/Table';
 import Modal from '../components/ui/Modal';
 import { formatDate } from '../lib/format';
+import { startOfDay, startOfWeek, startOfMonth } from 'date-fns';
 import api from '../api/client';
+
+const RANGES = [['today', 'Today'], ['week', 'This Week'], ['month', 'This Month'], ['all', 'All Time']];
 
 const STATUSES = ['Present', 'Late', 'Absent'];
 const emptyRec = { employee: '', date: '', checkIn: '', checkOut: '', status: 'Present', hoursWorked: 0 };
@@ -44,6 +47,7 @@ export default function Attendance() {
   const [modal, setModal] = useState(null); // { id } | { id: null }
   const [form, setForm] = useState(emptyRec);
   const [error, setError] = useState('');
+  const [range, setRange] = useState('today'); // today | week | month | all
 
   const act = async (kind) => {
     setBusy(true); setMsg('');
@@ -114,9 +118,19 @@ export default function Attendance() {
   const mine = records.filter((r) => String(r.employee?._id || r.employee) === String(user._id));
   const todayRec = mine.find((r) => new Date(r.date).toDateString() === today);
 
-  const present = records.filter((r) => r.status === 'Present').length;
-  const late = records.filter((r) => r.status === 'Late').length;
-  const absent = records.filter((r) => r.status === 'Absent').length;
+  // Filter the list to the selected time range.
+  const now = new Date();
+  const rangeStart = {
+    today: startOfDay(now),
+    week: startOfWeek(now, { weekStartsOn: 1 }),
+    month: startOfMonth(now),
+    all: null,
+  }[range];
+  const visible = rangeStart ? records.filter((r) => new Date(r.date) >= rangeStart) : records;
+
+  const present = visible.filter((r) => r.status === 'Present').length;
+  const late = visible.filter((r) => r.status === 'Late').length;
+  const absent = visible.filter((r) => r.status === 'Absent').length;
 
   return (
     <div>
@@ -152,11 +166,24 @@ export default function Attendance() {
         <StatCard label="Absent" value={absent} icon={Clock} accent="red" />
       </div>
 
-      {records.length === 0 ? (
-        <EmptyState title="No attendance records" hint="Check in to create your first record." />
+      <div className="mb-4 flex flex-wrap gap-2">
+        {RANGES.map(([k, label]) => (
+          <button
+            key={k}
+            onClick={() => setRange(k)}
+            className={`rounded-full px-3 py-1 text-sm font-medium ${range === k ? 'bg-brand-700 text-white' : 'border border-gray-200 bg-white text-gray-600 hover:bg-gray-50'}`}
+          >
+            {label}
+          </button>
+        ))}
+        <span className="ml-auto self-center text-xs text-gray-400">{visible.length} record{visible.length === 1 ? '' : 's'}</span>
+      </div>
+
+      {visible.length === 0 ? (
+        <EmptyState title="No attendance records" hint={range === 'today' ? 'No check-ins yet today.' : 'Nothing in this period.'} />
       ) : (
         <Table columns={[teamView ? 'Employee' : null, 'Date', 'Check In', 'Check Out', 'Hours', 'Status', isAdmin ? '' : null].filter((c) => c !== null)}>
-          {records.map((r) => (
+          {visible.map((r) => (
             <tr key={r._id} className="hover:bg-gray-50">
               {teamView && (
                 <td className="td">
