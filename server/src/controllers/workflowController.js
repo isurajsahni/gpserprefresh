@@ -8,6 +8,7 @@ import { User } from '../models/User.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { ApiError } from '../utils/ApiError.js';
 import { canWrite } from '../config/accessMatrix.js';
+import { computePeriodLeaderboard, recentPeriods } from '../utils/leaderboard.js';
 
 // PATCH /api/leaves/:id/status  { status }
 export const setLeaveStatus = asyncHandler(async (req, res) => {
@@ -289,17 +290,13 @@ export const postGoodMorning = asyncHandler(async (req, res) => {
   res.status(201).json({ post: populated, earnedPoint });
 });
 
-// GET /api/recognition?period=YYYY-MM | YYYY  -> leaderboard
+// GET /api/recognition?period=YYYY-MM | YYYY  -> performance leaderboard
 export const leaderboard = asyncHandler(async (req, res) => {
   const period = req.query.period || new Date().toISOString().slice(0, 7);
-  const rows = await Recognition.find({ period })
-    .populate('employee', 'name role department avatar')
-    .sort('-points');
-  res.json(rows.map((r, i) => ({ ...r.toObject(), rank: i + 1 })));
+  res.json(await computePeriodLeaderboard(period));
 });
 
-// GET /api/recognition/periods -> distinct periods available
+// GET /api/recognition/periods -> selectable periods
 export const recognitionPeriods = asyncHandler(async (_req, res) => {
-  const periods = await Recognition.distinct('period');
-  res.json(periods.sort().reverse());
+  res.json(recentPeriods());
 });

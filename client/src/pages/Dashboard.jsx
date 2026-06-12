@@ -222,9 +222,13 @@ export default function Dashboard() {
                   <Avatar name={r.employee?.name} src={r.employee?.avatar} size={32} />
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium text-gray-900">{r.employee?.name}</p>
-                    <p className="text-xs text-gray-400">{ROLE_LABELS[r.employee?.role]}</p>
+                    <p className="truncate text-xs text-gray-400">
+                      {r.breakdown
+                        ? `${r.breakdown.tasksOnTime} on-time · ${r.breakdown.hours}h${r.breakdown.gmFirst ? ` · ${r.breakdown.gmFirst}× first` : ''}`
+                        : ROLE_LABELS[r.employee?.role]}
+                    </p>
                   </div>
-                  <span className="text-sm font-bold text-brand-700">{r.points}</span>
+                  <span className="text-sm font-bold text-brand-700" title="Performance score">{r.points}</span>
                 </div>
               ))
             ) : (

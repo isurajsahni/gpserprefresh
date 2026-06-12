@@ -9,11 +9,11 @@ import { User } from '../models/User.js';
 import { Attendance } from '../models/Attendance.js';
 import { Notice } from '../models/Notice.js';
 import { Holiday } from '../models/Holiday.js';
-import { Recognition } from '../models/Recognition.js';
 import { GoodMorningMessage } from '../models/GoodMorningMessage.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { getAccess } from '../config/accessMatrix.js';
 import { buildScope } from '../utils/scope.js';
+import { computePeriodLeaderboard } from '../utils/leaderboard.js';
 
 const countByStatus = (docs) =>
   docs.reduce((acc, s) => {
@@ -110,10 +110,7 @@ export const dashboardStats = asyncHandler(async (req, res) => {
     .limit(5);
 
   const period = now.toISOString().slice(0, 7);
-  const leaderboard = await Recognition.find({ period })
-    .populate('employee', 'name role avatar department')
-    .sort('-points')
-    .limit(5);
+  const leaderboard = await computePeriodLeaderboard(period, { limit: 5 });
 
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
@@ -128,7 +125,7 @@ export const dashboardStats = asyncHandler(async (req, res) => {
     recentTasks,
     notices,
     upcomingHolidays,
-    leaderboard: leaderboard.map((r, i) => ({ ...r.toObject(), rank: i + 1 })),
+    leaderboard,
     goodMorningFeed,
   });
 });
