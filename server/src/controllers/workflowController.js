@@ -49,72 +49,65 @@ function todayRange() {
   return { start, end };
 }
 
-// A session is considered abandoned only after this long without any heartbeat
-// — i.e. the app/tab was genuinely closed. Kept well above the ~20s heartbeat
-// interval so cold starts, network blips, and briefly-backgrounded tabs (whose
-// timers the browser throttles) don't cause a false auto clock-out.
-const STALE_MS = 3 * 60 * 1000; // 3 minutes
-
-// Check-ins up to this time of day (minutes since midnight) are never late.
-const LATE_GRACE_UNTIL = 10 * 60; // 10:00 AM
+// ── Attendance day rules (minutes since midnight; server runs in IST) ──
+const CHECKIN_CUTOFF = 11 * 60; //        11:00 AM — no check-in allowed after this
+const LATE_GRACE_UNTIL = 10 * 60; //      10:00 AM — check-ins up to here are never marked Late
+const AUTO_CHECKOUT = 18 * 60 + 30; //    18:30 — everyone still on the clock is auto-checked-out
+const AUTO_CHECKOUT_STR = '18:30';
+const RECHECKIN_BLOCK_UNTIL = 20 * 60; // 20:00 — after checking out, no check-in until 8:00 PM
 
 const timeStr = (d) => d.toTimeString().slice(0, 5);
+const nowMinutes = (d) => d.getHours() * 60 + d.getMinutes();
 
-// Minutes elapsed from an "HH:mm" start to a Date (handles crossing midnight).
-function minutesFrom(startStr, endDate) {
-  const [h, m] = startStr.split(':').map(Number);
-  let diff = endDate.getHours() * 60 + endDate.getMinutes() - (h * 60 + m);
+// Minutes between two "HH:mm" clock times (handles crossing midnight).
+function minutesBetween(startStr, endStr) {
+  const [sh, sm] = startStr.split(':').map(Number);
+  const [eh, em] = endStr.split(':').map(Number);
+  let diff = eh * 60 + em - (sh * 60 + sm);
   if (diff < 0) diff += 24 * 60;
   return diff;
 }
 
-// Finalize an open session that has gone stale (heartbeats stopped → app closed),
-// crediting hours up to the last-seen time. Mutates `record`; returns true if changed.
-function closeStaleSession(record) {
-  if (!record?.clockedIn) return false;
-  const lastSeen = record.lastSeen || record.updatedAt || new Date();
-  if (Date.now() - new Date(lastSeen).getTime() <= STALE_MS) return false;
-  const seen = new Date(lastSeen);
+// Close an open session at a fixed clock time, crediting hours from check-in to it.
+function finalizeAt(record, endStr) {
   const startStr = record.sessionStart || record.checkIn;
-  const mins = startStr ? minutesFrom(startStr, seen) : 0;
-  record.hoursWorked = Math.round((Number(record.hoursWorked || 0) + mins / 60) * 10) / 10;
-  record.checkOut = timeStr(seen);
-  record.clockedIn = false;
-  return true;
-}
-
-// Finalize an abandoned open session from a previous day (checked in, never out).
-// Credits hours up to lastSeen when known, otherwise closes with no added hours.
-function finalizeOrphan(record) {
-  const seen = record.lastSeen ? new Date(record.lastSeen) : null;
-  const startStr = record.sessionStart || record.checkIn;
-  if (seen && startStr) {
-    record.hoursWorked = Math.round((Number(record.hoursWorked || 0) + minutesFrom(startStr, seen) / 60) * 10) / 10;
-    record.checkOut = timeStr(seen);
+  if (startStr) {
+    record.hoursWorked = Math.round((minutesBetween(startStr, endStr) / 60) * 10) / 10;
+    record.checkOut = endStr;
   } else {
     record.checkOut = record.checkIn || '';
   }
   record.clockedIn = false;
 }
 
-// Background sweep: finalize any sessions that are no longer live, so the list
-// never shows people as "on the clock" when they aren't. Called on an interval.
+// Background job: the 6:30 PM auto-checkout. Anyone still clocked in is checked
+// out at 18:30; sessions left open from previous days are closed the same way.
 export async function sweepStaleSessions() {
-  // 1) Close live sessions whose heartbeat has lapsed (app/tab closed).
-  const live = await Attendance.find({ clockedIn: true });
-  for (const r of live) {
-    if (closeStaleSession(r)) await r.save();
-  }
-  // 2) Finalize leftover open sessions from previous days (checked in, never out) —
-  //    includes old records created before heartbeat tracking existed.
   const { start } = todayRange();
+
+  // Today's open sessions — only once it's 6:30 PM or later.
+  if (nowMinutes(new Date()) >= AUTO_CHECKOUT) {
+    for (const r of await Attendance.find({ clockedIn: true, date: { $gte: start } })) {
+      finalizeAt(r, AUTO_CHECKOUT_STR);
+      await r.save();
+    }
+  }
+
+  // Sessions still flagged open from earlier days (missed their auto-checkout).
+  for (const r of await Attendance.find({ clockedIn: true, date: { $lt: start } })) {
+    finalizeAt(r, AUTO_CHECKOUT_STR);
+    await r.save();
+  }
+
+  // Legacy records: checked in, never checked out, not flagged clockedIn.
   const orphans = await Attendance.find({
     date: { $lt: start },
     checkIn: { $ne: '' },
+    clockedIn: { $ne: true },
     $or: [{ checkOut: '' }, { checkOut: null }, { checkOut: { $exists: false } }],
   });
   for (const r of orphans) {
-    finalizeOrphan(r);
+    finalizeAt(r, AUTO_CHECKOUT_STR);
     await r.save();
   }
 }
@@ -122,85 +115,78 @@ export async function sweepStaleSessions() {
 // POST /api/attendance/checkin
 export const checkIn = asyncHandler(async (req, res) => {
   const { start, end } = todayRange();
-  let record = await Attendance.findOne({ employee: req.auth.id, date: { $gte: start, $lt: end } });
-
-  // If a previous session is still "live" but stale, finalize it first.
-  if (record && record.clockedIn) {
-    if (closeStaleSession(record)) await record.save();
-    if (record.clockedIn) throw new ApiError(409, 'You are already checked in');
-  }
+  const record = await Attendance.findOne({ employee: req.auth.id, date: { $gte: start, $lt: end } });
 
   const now = new Date();
+  const mins = nowMinutes(now);
+
+  // Hard cut-off: no check-in after 11:00 AM.
+  if (mins > CHECKIN_CUTOFF) {
+    throw new ApiError(403, 'Check-in is closed for today — the cut-off is 11:00 AM.');
+  }
+  if (record?.clockedIn) throw new ApiError(409, 'You are already checked in.');
+  // One session a day: once you've checked out, no check-in again until 8:00 PM.
+  if (record?.checkOut && mins < RECHECKIN_BLOCK_UNTIL) {
+    throw new ApiError(409, "You've already checked out today — check-in reopens at 8:00 PM.");
+  }
+
   const checkInStr = timeStr(now);
-  // Grace period: a check-in any time up to 10:00 AM is never marked late, even
-  // if the assigned shift starts earlier. Late only applies after the later of
-  // the user's shift start and the 10:00 grace cutoff.
+  // Late if after the later of the assigned shift start and the 10:00 grace.
   const me = await User.findById(req.auth.id).select('shiftStart');
   const [shiftH, shiftM] = (me?.shiftStart || '09:30').split(':').map(Number);
   const cutoffMins = Math.max(shiftH * 60 + shiftM, LATE_GRACE_UNTIL);
-  const late = now.getHours() * 60 + now.getMinutes() > cutoffMins ? 'Late' : 'Present';
+  const status = mins > cutoffMins ? 'Late' : 'Present';
 
   if (!record) {
-    record = await Attendance.create({
-      employee: req.auth.id, date: start, checkIn: checkInStr, sessionStart: checkInStr, status: late, clockedIn: true, lastSeen: now,
+    const created = await Attendance.create({
+      employee: req.auth.id, date: start, checkIn: checkInStr, sessionStart: checkInStr, status, clockedIn: true, lastSeen: now,
     });
-  } else {
-    // New session later in the same day — keep the day's FIRST check-in (display)
-    // and accumulated hours/status; only move the session start for hour math.
-    if (!record.checkIn) record.checkIn = checkInStr; // legacy safety
-    record.sessionStart = checkInStr;
-    record.checkOut = '';
-    record.clockedIn = true;
-    record.lastSeen = now;
-    if (record.status === 'Absent') record.status = late;
-    await record.save();
+    return res.status(201).json(created);
   }
+  record.checkIn = checkInStr;
+  record.sessionStart = checkInStr;
+  record.checkOut = '';
+  record.clockedIn = true;
+  record.lastSeen = now;
+  record.status = status;
+  await record.save();
   res.status(201).json(record);
 });
 
-// POST /api/attendance/checkout  (?auto=1 from the on-close handler — idempotent)
+// POST /api/attendance/checkout — manual, once per day. Capped at the 6:30 PM auto-checkout.
 export const checkOut = asyncHandler(async (req, res) => {
   const { start, end } = todayRange();
   const record = await Attendance.findOne({ employee: req.auth.id, date: { $gte: start, $lt: end } });
-  const auto = req.query.auto === '1' || req.body?.auto === true;
-
-  if (!record || !record.clockedIn) {
-    if (auto) return res.json({ skipped: true }); // page-close may fire when already out
-    throw new ApiError(400, 'You are not checked in');
-  }
+  if (!record || !record.clockedIn) throw new ApiError(400, 'You are not checked in.');
 
   const now = new Date();
-  const startStr = record.sessionStart || record.checkIn; // current session start, not the day's first check-in
-  const mins = minutesFrom(startStr, now);
-  record.checkOut = timeStr(now);
-  record.hoursWorked = Math.round((Number(record.hoursWorked || 0) + mins / 60) * 10) / 10;
-  record.clockedIn = false;
+  const endStr = nowMinutes(now) > AUTO_CHECKOUT ? AUTO_CHECKOUT_STR : timeStr(now);
+  finalizeAt(record, endStr);
   await record.save();
   res.json(record);
 });
 
-// POST /api/attendance/heartbeat — keep the live session alive while the app is open.
+// POST /api/attendance/heartbeat — presence ping; applies the 6:30 PM auto-checkout lazily.
 export const attendanceHeartbeat = asyncHandler(async (req, res) => {
   const { start, end } = todayRange();
   const record = await Attendance.findOne({ employee: req.auth.id, date: { $gte: start, $lt: end } });
   if (!record) return res.json(null);
-  // A heartbeat is proof the user is present, so ALWAYS refresh — never close
-  // here. (After a server cold start the first heartbeat arrives with an old
-  // lastSeen; closing on that would wrongly clock out a present user.) Stale
-  // closing is left to the background sweep, which only fires when heartbeats
-  // have genuinely stopped.
   if (record.clockedIn) {
-    record.lastSeen = new Date();
+    if (nowMinutes(new Date()) >= AUTO_CHECKOUT) finalizeAt(record, AUTO_CHECKOUT_STR);
+    else record.lastSeen = new Date();
     await record.save();
   }
   res.json(record);
 });
 
-// GET /api/attendance/today — today's record for the current user (finalizes stale sessions).
+// GET /api/attendance/today — today's record (applies the 6:30 PM auto-checkout lazily).
 export const attendanceToday = asyncHandler(async (req, res) => {
   const { start, end } = todayRange();
   const record = await Attendance.findOne({ employee: req.auth.id, date: { $gte: start, $lt: end } });
-  if (record && closeStaleSession(record)) await record.save();
+  if (record?.clockedIn && nowMinutes(new Date()) >= AUTO_CHECKOUT) {
+    finalizeAt(record, AUTO_CHECKOUT_STR);
+    await record.save();
+  }
   res.json(record || null);
 });
 

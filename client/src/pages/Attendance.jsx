@@ -118,6 +118,12 @@ export default function Attendance() {
   const mine = records.filter((r) => String(r.employee?._id || r.employee) === String(user._id));
   const todayRec = mine.find((r) => new Date(r.date).toDateString() === today);
 
+  // Check-in window rules (mirror the backend): open until 11:00 AM, one session a day.
+  const nowMins = new Date().getHours() * 60 + new Date().getMinutes();
+  const checkInClosed = nowMins > 11 * 60;
+  const doneForToday = !!todayRec?.checkOut;
+  const canCheckIn = !busy && !todayRec?.clockedIn && !doneForToday && !checkInClosed;
+
   // Filter the list to the selected time range.
   const now = new Date();
   const rangeStart = {
@@ -137,7 +143,8 @@ export default function Attendance() {
       <PageHeader title="Attendance" subtitle={isAdmin ? 'Manage and correct any employee’s timings' : teamView ? 'Team attendance & summaries' : 'Your check-in / check-out history'}>
         <div className="flex flex-wrap gap-2">
           {isAdmin && <button onClick={() => openRec(null)} className="btn-secondary"><Plus size={18} /> Add Record</button>}
-          <button onClick={() => act('checkin')} disabled={busy || todayRec?.clockedIn} className="btn-primary">
+          <button onClick={() => act('checkin')} disabled={!canCheckIn} className="btn-primary"
+            title={checkInClosed ? 'Check-in closed after 11:00 AM' : doneForToday ? 'Already checked out today' : ''}>
             <LogIn size={18} /> Check In
           </button>
           <button onClick={() => act('checkout')} disabled={busy || !todayRec?.clockedIn} className="btn-secondary">
@@ -153,7 +160,13 @@ export default function Attendance() {
             <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-brand-600" />
           </span>
           On the clock since {todayRec.sessionStart || todayRec.checkIn} · <SessionTimer checkIn={todayRec.sessionStart || todayRec.checkIn} />
-          <span className="text-brand-600/70">— closing the app clocks you out automatically</span>
+          <span className="text-brand-600/70">— auto check-out at 6:30 PM</span>
+        </div>
+      )}
+
+      {!todayRec?.clockedIn && (doneForToday || checkInClosed) && (
+        <div className="mb-4 rounded-lg bg-gray-100 px-3 py-2 text-sm text-gray-600">
+          {doneForToday ? 'You have checked out for today — check-in reopens tomorrow.' : 'Check-in is closed for today (the cut-off is 11:00 AM).'}
         </div>
       )}
 
