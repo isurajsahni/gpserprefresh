@@ -52,6 +52,7 @@ import {
 } from '../controllers/notificationController.js';
 import { dashboardStats } from '../controllers/dashboardController.js';
 import { uploadImageHandler } from '../controllers/uploadController.js';
+import { generatePayroll } from '../controllers/payrollController.js';
 import { reportsOverview, attendanceReport } from '../controllers/reportsController.js';
 import {
   listChannels,
@@ -173,15 +174,16 @@ api.use(
 );
 
 // ---- Payroll ----
-api.use(
-  '/payroll',
-  crudRouter(Payroll, {
+{
+  const { router } = crudRouter(Payroll, {
     module: 'payroll',
     ownerField: 'employee',
     populate: [{ path: 'employee', select: 'name role department avatar' }],
     sort: '-month',
-  }).router
-);
+  });
+  router.post('/generate', requireModule('payroll'), generatePayroll);
+  api.use('/payroll', router);
+}
 
 // ---- Campaigns ----
 api.use(

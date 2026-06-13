@@ -19,4 +19,13 @@ const payrollSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// Always derive gross and net from the components (runs on create and save()).
+payrollSchema.pre('save', function (next) {
+  this.gross = (this.basic || 0) + (this.hra || 0) + (this.da || 0) + (this.allowances || 0);
+  this.netPay = this.gross - ((this.pf || 0) + (this.tds || 0) + (this.esi || 0));
+  next();
+});
+
+payrollSchema.index({ employee: 1, month: 1 }, { unique: true });
+
 export const Payroll = mongoose.model('Payroll', payrollSchema);
