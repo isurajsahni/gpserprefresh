@@ -24,6 +24,7 @@ export function createApp() {
       const { hostname } = new URL(origin);
       if (hostname === 'localhost' || hostname === '127.0.0.1') return true;
       if (hostname.endsWith('.vercel.app')) return true; // Vercel production + preview deploys
+      if (hostname === 'gpsfdk.com' || hostname.endsWith('.gpsfdk.com')) return true; // custom domain
     } catch {
       /* malformed origin → not allowed */
     }
