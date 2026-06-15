@@ -5,6 +5,7 @@ import AppLayout from './components/layout/AppLayout';
 import Landing from './pages/public/Landing';
 import Login from './pages/public/Login';
 import Register from './pages/public/Register';
+import ForgotPassword from './pages/public/ForgotPassword';
 
 import Dashboard from './pages/Dashboard';
 import Chat from './pages/Chat';
@@ -36,6 +37,7 @@ export default function App() {
       <Route path="/" element={<Landing />} />
       <Route path="/login" element={<PublicOnlyRoute><Login /></PublicOnlyRoute>} />
       <Route path="/register" element={<PublicOnlyRoute><Register /></PublicOnlyRoute>} />
+      <Route path="/forgot-password" element={<PublicOnlyRoute><ForgotPassword /></PublicOnlyRoute>} />
 
       {/* Authenticated app */}
       <Route

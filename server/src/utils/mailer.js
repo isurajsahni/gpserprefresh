@@ -106,3 +106,29 @@ export function credentialsEmail({ name, email, password, employeeId, role, logi
 
   return { html, text };
 }
+
+/** Branded HTML for the password-reset OTP email. */
+export function otpEmail({ name, otp, minutes = 10 }) {
+  const text =
+    `Hi ${name},\n\n` +
+    `Your GPSFDK ERP password reset code is: ${otp}\n\n` +
+    `It expires in ${minutes} minutes. If you didn't request this, you can ignore this email.`;
+
+  const html = `
+  <div style="font-family:Inter,Arial,sans-serif;max-width:520px;margin:0 auto;color:#111827">
+    <div style="background:#0b5d3b;border-radius:12px 12px 0 0;padding:24px 28px;color:#fff">
+      <h1 style="margin:0;font-size:20px;font-weight:800">GPSFDK.com</h1>
+      <p style="margin:2px 0 0;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#bbf7d0">Enterprise Resource Planning</p>
+    </div>
+    <div style="border:1px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px;padding:28px">
+      <h2 style="margin:0 0 8px;font-size:18px">Password reset code</h2>
+      <p style="color:#4b5563;font-size:14px;margin:0 0 20px">Hi ${name}, use the code below to reset your password.</p>
+      <div style="text-align:center;margin:8px 0 18px">
+        <span style="display:inline-block;font-family:monospace;font-size:30px;font-weight:800;letter-spacing:8px;color:#0b5d3b;background:#f0fdf4;border:1px dashed #86efac;border-radius:10px;padding:14px 22px">${otp}</span>
+      </div>
+      <p style="color:#9ca3af;font-size:12px;margin:0">This code expires in ${minutes} minutes. If you didn't request a password reset, you can safely ignore this email.</p>
+    </div>
+  </div>`;
+
+  return { html, text };
+}

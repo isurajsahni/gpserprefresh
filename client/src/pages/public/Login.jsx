@@ -12,6 +12,7 @@ export default function Login() {
   const [form, setForm] = useState({ email: '', password: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const notice = location.state?.notice;
 
   const submit = async (e) => {
     e.preventDefault();
@@ -37,6 +38,7 @@ export default function Login() {
           <h1 className="text-xl font-bold text-gray-900">Welcome back</h1>
           <p className="mt-1 text-sm text-gray-500">Sign in to your GPSFDK ERP workspace.</p>
 
+          {notice && !error && <div className="mt-4 rounded-lg bg-green-50 px-3 py-2 text-sm text-green-700">{notice}</div>}
           {error && <div className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
 
           <form onSubmit={submit} className="mt-5 space-y-4">
@@ -52,7 +54,10 @@ export default function Login() {
               />
             </div>
             <div>
-              <label className="label">Password</label>
+              <div className="mb-1 flex items-center justify-between">
+                <label className="label mb-0">Password</label>
+                <Link to="/forgot-password" className="text-xs font-medium text-brand-700 hover:underline">Forgot password?</Link>
+              </div>
               <input
                 type="password"
                 required

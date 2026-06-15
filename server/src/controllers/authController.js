@@ -1,9 +1,13 @@
+import crypto from 'crypto';
 import { z } from 'zod';
 import { User } from '../models/User.js';
 import { ROLES } from '../config/accessMatrix.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { ApiError } from '../utils/ApiError.js';
 import { signToken, cookieOptions } from '../utils/token.js';
+import { sendMail, otpEmail } from '../utils/mailer.js';
+
+const hashOtp = (otp) => crypto.createHash('sha256').update(String(otp)).digest('hex');
 
 const registerSchema = z.object({
   name: z.string().min(2),
@@ -88,4 +92,45 @@ export const updateProfile = asyncHandler(async (req, res) => {
 export const logout = asyncHandler(async (_req, res) => {
   res.clearCookie('token', cookieOptions);
   res.json({ success: true });
+});
+
+const OTP_TTL_MIN = 10;
+const forgotSchema = z.object({ email: z.string().email() });
+const resetSchema = z.object({
+  email: z.string().email(),
+  otp: z.string().trim().min(4),
+  newPassword: z.string().min(6),
+});
+
+// POST /auth/forgot-password — emails a one-time code. Always responds the same
+// way so it can't be used to discover which emails are registered.
+export const forgotPassword = asyncHandler(async (req, res) => {
+  const { email } = forgotSchema.parse(req.body);
+  const user = await User.findOne({ email });
+  if (user && user.status !== 'Inactive') {
+    const otp = String(Math.floor(100000 + Math.random() * 900000)); // 6 digits
+    user.resetOtpHash = hashOtp(otp);
+    user.resetOtpExpires = new Date(Date.now() + OTP_TTL_MIN * 60 * 1000);
+    await user.save();
+    const { html, text } = otpEmail({ name: user.name, otp, minutes: OTP_TTL_MIN });
+    await sendMail({ to: user.email, subject: 'Your GPSFDK ERP password reset code', html, text });
+  }
+  res.json({ message: 'If that email is registered, a reset code has been sent.' });
+});
+
+// POST /auth/reset-password — verifies the OTP and sets a new password.
+export const resetPassword = asyncHandler(async (req, res) => {
+  const { email, otp, newPassword } = resetSchema.parse(req.body);
+  const user = await User.findOne({ email }).select('+resetOtpHash +resetOtpExpires +passwordHash');
+  if (!user || !user.resetOtpHash || !user.resetOtpExpires) {
+    throw new ApiError(400, 'No reset request found. Please request a new code.');
+  }
+  if (user.resetOtpExpires < new Date()) throw new ApiError(400, 'This code has expired — request a new one.');
+  if (hashOtp(otp) !== user.resetOtpHash) throw new ApiError(400, 'Incorrect code.');
+
+  await user.setPassword(newPassword);
+  user.resetOtpHash = null;
+  user.resetOtpExpires = null;
+  await user.save();
+  res.json({ message: 'Password updated. You can now sign in.' });
 });

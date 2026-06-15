@@ -19,6 +19,9 @@ const userSchema = new mongoose.Schema(
     salary: { type: Number, default: 0 },
     status: { type: String, enum: ['Active', 'On Leave', 'Inactive'], default: 'Active' },
     reportingManager: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    // Password-reset OTP (hashed) and its expiry — hidden from normal queries.
+    resetOtpHash: { type: String, default: null, select: false },
+    resetOtpExpires: { type: Date, default: null, select: false },
   },
   { timestamps: true }
 );
