@@ -1,5 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-  <rect width="24" height="24" rx="5" fill="#1d4ed8" stroke="none"/>
-  <path d="M20 10c0 4.418-8 12-8 12s-8-7.582-8-12a8 8 0 0 1 16 0Z" transform="translate(0 -1) scale(0.9) translate(1.2 1.5)"/>
-  <circle cx="12" cy="9" r="2.2" transform="translate(0 -0.5)"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- GPSFDK brand mark: two-tone flame/leaf (green + orange). Stand-in until
+       the exact logo PNG is dropped at /favicon.png, which takes priority. -->
+  <rect width="64" height="64" rx="14" fill="#ffffff"/>
+  <path d="M32 10 C26 18,16 28,18 40 C19.5 50,27 56,32 58 Z" fill="#1c7a43"/>
+  <path d="M32 10 C38 18,48 28,46 40 C44.5 50,37 56,32 58 Z" fill="#e8632a"/>
+  <path d="M32 16 C30 26,30 38,32 50" stroke="#ffffff" stroke-width="1.6" stroke-linecap="round" fill="none" opacity="0.85"/>
 </svg>
