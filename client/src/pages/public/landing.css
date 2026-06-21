@@ -107,6 +107,9 @@ html:has(.lp) { scroll-behavior: smooth; }
   font-family: 'Space Mono', monospace;
   font-size: 11px; color: #8aa394; letter-spacing: 0.04em; text-align: center; padding: 0 20px;
 }
+/* Real product screenshot overlays the placeholder; if the file is missing it
+   hides (via onError) and the placeholder note shows instead. */
+.lp .ph .shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: top left; }
 
 /* Reveal */
 .lp .reveal { opacity: 0; transform: translateY(28px); transition: opacity 0.9s var(--ease), transform 0.9s var(--ease); }

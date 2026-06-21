@@ -6,6 +6,12 @@ import {
 } from 'lucide-react';
 import './landing.css';
 
+// Real product screenshot that overlays a placeholder; hides itself if the file
+// isn't present, so the placeholder note shows instead (no broken-image icon).
+const shot = (src, alt) => (
+  <img className="shot" src={src} alt={alt} loading="lazy" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+);
+
 // Small circular arrow used inside buttons / module links.
 const Arrow = () => (
   <span className="arrow">
@@ -147,7 +153,7 @@ export default function Landing() {
             </div>
           </div>
           <div className="hero-visual reveal" data-delay="300">
-            <div className="hero-img ph"><span className="ph-note">— dashboard preview —<br />(role-aware KPIs & charts)</span></div>
+            <div className="hero-img ph">{shot('/screens/dashboard.png', 'GPSFDK ERP dashboard')}<span className="ph-note">— dashboard preview —<br />(role-aware KPIs & charts)</span></div>
             <div className="float-chip chip-stat">
               <span className="num">13+</span>
               <span className="lbl">integrated modules in one workspace</span>
@@ -212,7 +218,7 @@ export default function Landing() {
       {/* About split */}
       <section className="section">
         <div className="container split">
-          <div className="split-img ph reveal"><span className="ph-note">— team / workspace —</span></div>
+          <div className="split-img ph reveal">{shot('/screens/workspace.png', 'GPSFDK ERP workspace')}<span className="ph-note">— team / workspace —</span></div>
           <div className="reveal" data-delay="150">
             <div className="kicker">What it replaces</div>
             <h2 className="h-display h2">We bring HR, projects &amp; finance into <em>one place</em></h2>
@@ -240,13 +246,13 @@ export default function Landing() {
               <div className="icon-ring"><LayoutDashboard size={18} /></div>
               <h3>For managers</h3>
               <p>Tenders, project boards, budgets and team attendance in a single view — approve leaves and expenses without leaving the dashboard.</p>
-              <div className="ph"><span className="ph-note">— manager view —</span></div>
+              <div className="ph">{shot('/screens/manager.png', 'Manager view')}<span className="ph-note">— manager view —</span></div>
             </div>
             <div className="purpose-card reveal">
               <div className="icon-ring"><Users size={18} /></div>
               <h3>For teams</h3>
               <p>Check in, log time on tasks, apply for leave and see your payslips — everything an employee needs, with nothing they don't.</p>
-              <div className="ph"><span className="ph-note">— employee view —</span></div>
+              <div className="ph">{shot('/screens/employee.png', 'Employee view')}<span className="ph-note">— employee view —</span></div>
             </div>
           </div>
         </div>
@@ -268,7 +274,7 @@ export default function Landing() {
           <div className="modules-track reveal" data-delay="150" ref={trackRef}>
             {MODULES.map((m) => (
               <div className="module-card" key={m.name}>
-                <div className="ph"><span className="ph-note">— {m.name.toLowerCase()} —</span></div>
+                <div className="ph">{shot(`/screens/modules/${m.name.toLowerCase().replace(/\s+/g, '-')}.png`, m.name)}<span className="ph-note">— {m.name.toLowerCase()} —</span></div>
                 <div className="module-card-body">
                   <div className="module-cat">{m.cat}</div>
                   <h3>{m.name}</h3>
