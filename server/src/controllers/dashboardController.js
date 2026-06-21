@@ -23,8 +23,19 @@ const countByStatus = (docs) =>
 
 // GET /api/dashboard/stats — role-aware KPIs, charts, and feeds.
 export const dashboardStats = asyncHandler(async (req, res) => {
-  const { id, role } = req.auth;
+  let { id, role } = req.auth;
   const now = new Date();
+
+  // Super admins may view another user's dashboard read-only via ?as=<userId>.
+  let viewingAs = null;
+  if (req.query.as && req.auth.role === 'super_admin' && String(req.query.as) !== String(req.auth.id)) {
+    const target = await User.findById(req.query.as).select('name role avatar department');
+    if (target) {
+      id = String(target._id);
+      role = target.role;
+      viewingAs = { _id: target._id, name: target.name, role: target.role, avatar: target.avatar, department: target.department };
+    }
+  }
 
   // Projects scoped to what the user can see.
   const projAccess = getAccess('projects', role);
@@ -127,5 +138,6 @@ export const dashboardStats = asyncHandler(async (req, res) => {
     upcomingHolidays,
     leaderboard,
     goodMorningFeed,
+    viewingAs,
   });
 });

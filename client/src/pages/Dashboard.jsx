@@ -3,7 +3,7 @@ import * as Icons from 'lucide-react';
 import {
   PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend,
 } from 'recharts';
-import { useFetch } from '../hooks/useFetch';
+import { useFetch, useUserOptions } from '../hooks/useFetch';
 import { useAuth } from '../context/AuthContext';
 import { Loading, EmptyState, StatCard, Badge, Avatar, PageHeader } from '../components/ui/primitives';
 import Modal from '../components/ui/Modal';
@@ -24,7 +24,11 @@ const STATUS_COLORS = {
 
 export default function Dashboard() {
   const { user } = useAuth();
-  const { data, loading, refetch } = useFetch('/dashboard/stats', []);
+  const isSuperAdmin = user?.role === 'super_admin';
+  const [viewUserId, setViewUserId] = useState(''); // '' = my own dashboard
+  const allUsers = useUserOptions();
+  const statsUrl = viewUserId ? `/dashboard/stats?as=${viewUserId}` : '/dashboard/stats';
+  const { data, loading, refetch } = useFetch(statsUrl, [statsUrl]);
   const [thought, setThought] = useState('');
   const [posting, setPosting] = useState(false);
   const [postMsg, setPostMsg] = useState('');
@@ -70,7 +74,8 @@ export default function Dashboard() {
   if (loading) return <Loading label="Building your dashboard…" />;
   if (!data) return <EmptyState title="No dashboard data" />;
 
-  const { kpis, charts, recentTasks, notices, upcomingHolidays, leaderboard, goodMorningFeed } = data;
+  const { kpis, charts, recentTasks, notices, upcomingHolidays, leaderboard, goodMorningFeed, viewingAs } = data;
+  const viewing = !!viewingAs; // read-only: viewing another user's dashboard
 
   // Project progress gauge — weighted so in-progress work counts as partial
   // progress (not 0% until fully done). The ring fills to the average progress.
@@ -105,9 +110,31 @@ export default function Dashboard() {
   return (
     <div>
       <PageHeader
-        title={`Good day, ${user?.name?.split(' ')[0]} 👋`}
-        subtitle={`${ROLE_LABELS[user?.role]} · ${formatDate(new Date(), 'EEEE, dd MMM yyyy')}`}
-      />
+        title={viewing ? `${viewingAs.name}'s dashboard` : `Good day, ${user?.name?.split(' ')[0]} 👋`}
+        subtitle={viewing ? `${ROLE_LABELS[viewingAs.role]} · viewing read-only` : `${ROLE_LABELS[user?.role]} · ${formatDate(new Date(), 'EEEE, dd MMM yyyy')}`}
+      >
+        {isSuperAdmin && (
+          <select
+            className="input max-w-[15rem]"
+            value={viewUserId}
+            onChange={(e) => setViewUserId(e.target.value)}
+            title="View a user's dashboard (read-only)"
+          >
+            <option value="">My dashboard</option>
+            {allUsers.filter((u) => u._id !== user._id).map((u) => (
+              <option key={u._id} value={u._id}>View: {u.name}</option>
+            ))}
+          </select>
+        )}
+      </PageHeader>
+
+      {viewing && (
+        <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          <Icons.Eye size={16} />
+          You're viewing <b>{viewingAs.name}</b>'s dashboard in read-only mode.
+          <button onClick={() => setViewUserId('')} className="ml-auto font-semibold text-amber-900 underline">Exit</button>
+        </div>
+      )}
 
       {/* KPI cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -246,16 +273,20 @@ export default function Dashboard() {
             <h3 className="font-semibold text-gray-900">Today’s Good Morning feed</h3>
           </div>
           <div className="px-5 py-4">
-            <form onSubmit={postThought} className="flex gap-2">
-              <input
-                className="input"
-                placeholder="Share your best thought of the day…"
-                value={thought}
-                onChange={(e) => setThought(e.target.value)}
-              />
-              <button disabled={posting} className="btn-primary whitespace-nowrap">Post</button>
-            </form>
-            {postMsg && <p className="mt-2 text-xs font-medium text-brand-700">{postMsg}</p>}
+            {!viewing && (
+              <>
+                <form onSubmit={postThought} className="flex gap-2">
+                  <input
+                    className="input"
+                    placeholder="Share your best thought of the day…"
+                    value={thought}
+                    onChange={(e) => setThought(e.target.value)}
+                  />
+                  <button disabled={posting} className="btn-primary whitespace-nowrap">Post</button>
+                </form>
+                {postMsg && <p className="mt-2 text-xs font-medium text-brand-700">{postMsg}</p>}
+              </>
+            )}
             <div className="mt-4 space-y-3">
               {goodMorningFeed?.length ? (
                 goodMorningFeed.map((g) => (
@@ -283,7 +314,7 @@ export default function Dashboard() {
             <div className="flex items-center gap-2 border-b border-gray-100 px-5 py-4">
               <Icons.Megaphone size={18} className="text-brand-700" />
               <h3 className="font-semibold text-gray-900">Notice board</h3>
-              {canNotice && (
+              {canNotice && !viewing && (
                 <button onClick={() => { setSaveErr(''); setNoticeForm({ title: '', body: '', priority: 'normal', pinned: false }); }} className="btn-ghost btn-sm ml-auto">
                   <Icons.Plus size={16} /> Add
                 </button>
@@ -311,7 +342,7 @@ export default function Dashboard() {
             <div className="flex items-center gap-2 border-b border-gray-100 px-5 py-4">
               <Icons.CalendarHeart size={18} className="text-green-600" />
               <h3 className="font-semibold text-gray-900">Upcoming holidays</h3>
-              {canHoliday && (
+              {canHoliday && !viewing && (
                 <button onClick={() => { setSaveErr(''); setHolidayForm({ name: '', date: '' }); }} className="btn-ghost btn-sm ml-auto">
                   <Icons.Plus size={16} /> Add
                 </button>
