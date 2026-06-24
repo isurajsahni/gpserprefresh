@@ -12,7 +12,7 @@ import api from '../api/client';
 
 const RANGES = [['today', 'Today'], ['week', 'This Week'], ['month', 'This Month'], ['all', 'All Time']];
 
-const STATUSES = ['Present', 'Late', 'Absent'];
+const STATUSES = ['Present', 'Absent'];
 const emptyRec = { employee: '', date: '', checkIn: '', checkOut: '', status: 'Present', hoursWorked: 0 };
 
 // Live HH:MM:SS counter for the current open session (since today's check-in).
@@ -135,7 +135,6 @@ export default function Attendance() {
   const visible = rangeStart ? records.filter((r) => new Date(r.date) >= rangeStart) : records;
 
   const present = visible.filter((r) => r.status === 'Present').length;
-  const late = visible.filter((r) => r.status === 'Late').length;
   const absent = visible.filter((r) => r.status === 'Absent').length;
 
   return (
@@ -172,10 +171,9 @@ export default function Attendance() {
 
       {msg && <div className="mb-4 rounded-lg bg-brand-50 px-3 py-2 text-sm font-medium text-brand-700">{msg}</div>}
 
-      <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
         <StatCard label="Today" value={todayRec ? todayRec.status : 'Not marked'} icon={Clock} hint={todayRec?.checkIn ? `In ${todayRec.checkIn}${todayRec.checkOut ? ` · Out ${todayRec.checkOut}` : ''}` : `Shift ${user.shiftStart || '09:30'}–${user.shiftEnd || '18:30'}`} />
         <StatCard label="Present" value={present} icon={Clock} accent="green" />
-        <StatCard label="Late" value={late} icon={Clock} accent="amber" />
         <StatCard label="Absent" value={absent} icon={Clock} accent="red" />
       </div>
 

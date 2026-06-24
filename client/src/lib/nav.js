@@ -45,14 +45,6 @@ export const NAV_GROUPS = [
     ],
   },
   {
-    group: 'Business',
-    items: [
-      { label: 'Tenders', path: '/tenders', icon: FileText, module: 'tenders' },
-      { label: 'Campaigns', path: '/campaigns', icon: Megaphone, module: 'campaigns' },
-      { label: 'Leads', path: '/leads', icon: Target, module: 'leads' },
-    ],
-  },
-  {
     group: 'Finance & Assets',
     items: [
       { label: 'Finance', path: '/finance', icon: Receipt, module: 'finance' },
@@ -63,10 +55,6 @@ export const NAV_GROUPS = [
   {
     group: 'Creative',
     items: [{ label: 'Design Library', path: '/design-library', icon: Palette, module: 'design_library' }],
-  },
-  {
-    group: 'Insights',
-    items: [{ label: 'Reports', path: '/reports', icon: BarChart3, module: 'reports' }],
   },
   {
     group: 'Admin',

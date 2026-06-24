@@ -77,6 +77,13 @@ export default function Dashboard() {
   const { kpis, charts, recentTasks, notices, upcomingHolidays, leaderboard, goodMorningFeed, viewingAs } = data;
   const viewing = !!viewingAs; // read-only: viewing another user's dashboard
 
+  // Project/task widgets only show on the web developer's dashboard. Open Leads
+  // is removed everywhere.
+  const isWebDev = (viewingAs?.role || user?.role) === 'web_developer';
+  const hiddenKpis = new Set(['Open Leads']);
+  if (!isWebDev) { hiddenKpis.add('My Projects'); hiddenKpis.add('Open Tasks'); }
+  const visibleKpis = kpis.filter((k) => !hiddenKpis.has(k.label));
+
   // Project progress gauge — weighted so in-progress work counts as partial
   // progress (not 0% until fully done). The ring fills to the average progress.
   const STATUS_WEIGHT = { 'To Do': 0, 'In Progress': 0.5, 'Under Review': 0.85, Completed: 1 };
@@ -138,7 +145,7 @@ export default function Dashboard() {
 
       {/* KPI cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {kpis.map((k) => {
+        {visibleKpis.map((k) => {
           const Icon = Icons[k.icon] || Icons.Activity;
           return <StatCard key={k.label} label={k.label} value={k.value} icon={Icon} />;
         })}
@@ -146,7 +153,7 @@ export default function Dashboard() {
 
       <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Charts */}
-        <div className="card-pad lg:col-span-2">
+        <div className={`card-pad ${isWebDev ? 'lg:col-span-2' : 'lg:col-span-3'}`}>
           <h3 className="mb-4 font-semibold text-gray-900">Weekly hours logged</h3>
           {charts.attendanceTrend?.some((d) => d.hours > 0) ? (
             <ResponsiveContainer width="100%" height={240}>
@@ -163,6 +170,7 @@ export default function Dashboard() {
           )}
         </div>
 
+        {isWebDev && (
         <div className="card-pad">
           <h3 className="mb-4 font-semibold text-gray-900">Project progress</h3>
           {projTotal ? (
@@ -205,10 +213,12 @@ export default function Dashboard() {
             <EmptyState title="No projects" />
           )}
         </div>
+        )}
       </div>
 
       <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {/* Recent tasks */}
+        {/* Recent tasks (web developer only) */}
+        {isWebDev && (
         <div className="card lg:col-span-2">
           <div className="border-b border-gray-100 px-5 py-4">
             <h3 className="font-semibold text-gray-900">Recent tasks</h3>
@@ -231,9 +241,10 @@ export default function Dashboard() {
             )}
           </div>
         </div>
+        )}
 
         {/* Leaderboard */}
-        <div className="card">
+        <div className={`card ${isWebDev ? '' : 'lg:col-span-3'}`}>
           <div className="flex items-center gap-2 border-b border-gray-100 px-5 py-4">
             <Icons.Trophy size={18} className="text-amber-500" />
             <h3 className="font-semibold text-gray-900">Employee of the Month</h3>

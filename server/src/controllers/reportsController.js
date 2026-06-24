@@ -92,7 +92,7 @@ export const attendanceReport = asyncHandler(async (_req, res) => {
   start.setDate(1);
   start.setHours(0, 0, 0, 0);
   const records = await Attendance.find({ date: { $gte: start } });
-  const summary = ['Present', 'Late', 'Absent'].map((status) => ({
+  const summary = ['Present', 'Absent'].map((status) => ({
     name: status,
     value: records.filter((r) => r.status === status).length,
   }));

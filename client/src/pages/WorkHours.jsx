@@ -30,11 +30,10 @@ export default function WorkHours() {
         <EmptyState title="No attendance in this range" hint="Pick a different date range, or have the team check in." icon={CalendarRange} />
       ) : (
         <>
-          <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
+          <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
             <StatCard label="Employees" value={data.rows.length} icon={Users} />
             <StatCard label="Total Hours" value={`${data.totals.totalHours}h`} icon={Clock} accent="green" />
             <StatCard label="Present Days" value={data.totals.daysPresent} icon={TrendingUp} accent="purple" />
-            <StatCard label="Late Days" value={data.totals.daysLate} icon={Clock} accent="amber" />
           </div>
 
           {data.teamView && (
@@ -52,7 +51,7 @@ export default function WorkHours() {
             </div>
           )}
 
-          <Table columns={['Employee', 'Shift', 'Total Hours', 'Avg / Day', 'Present', 'Late', 'Absent', 'Records']}>
+          <Table columns={['Employee', 'Shift', 'Total Hours', 'Avg / Day', 'Present', 'Absent', 'Records']}>
             {data.rows.map((r) => (
               <tr key={r._id} className="hover:bg-gray-50">
                 <td className="td">
@@ -68,7 +67,6 @@ export default function WorkHours() {
                 <td className="td font-semibold">{r.totalHours}h</td>
                 <td className="td">{r.avgHours}h</td>
                 <td className="td"><Badge status="Present">{r.daysPresent}</Badge></td>
-                <td className="td">{r.daysLate ? <Badge status="Late">{r.daysLate}</Badge> : <span className="text-gray-400">0</span>}</td>
                 <td className="td">{r.daysAbsent ? <Badge status="Absent">{r.daysAbsent}</Badge> : <span className="text-gray-400">0</span>}</td>
                 <td className="td text-gray-500">{r.records}</td>
               </tr>

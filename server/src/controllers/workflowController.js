@@ -51,7 +51,6 @@ function todayRange() {
 
 // ── Attendance day rules (minutes since midnight; server runs in IST) ──
 const CHECKIN_CUTOFF = 11 * 60; //        11:00 AM — no check-in allowed after this
-const LATE_GRACE_UNTIL = 10 * 60; //      10:00 AM — check-ins up to here are never marked Late
 const AUTO_CHECKOUT = 18 * 60 + 30; //    18:30 — everyone still on the clock is auto-checked-out
 const AUTO_CHECKOUT_STR = '18:30';
 const RECHECKIN_BLOCK_UNTIL = 20 * 60; // 20:00 — after checking out, no check-in until 8:00 PM
@@ -131,11 +130,7 @@ export const checkIn = asyncHandler(async (req, res) => {
   }
 
   const checkInStr = timeStr(now);
-  // Late if after the later of the assigned shift start and the 10:00 grace.
-  const me = await User.findById(req.auth.id).select('shiftStart');
-  const [shiftH, shiftM] = (me?.shiftStart || '09:30').split(':').map(Number);
-  const cutoffMins = Math.max(shiftH * 60 + shiftM, LATE_GRACE_UNTIL);
-  const status = mins > cutoffMins ? 'Late' : 'Present';
+  const status = 'Present'; // Late status has been removed
 
   if (!record) {
     const created = await Attendance.create({
