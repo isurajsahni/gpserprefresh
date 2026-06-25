@@ -3,7 +3,7 @@ import * as Icons from 'lucide-react';
 import {
   PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend,
 } from 'recharts';
-import { useFetch, useUserOptions } from '../hooks/useFetch';
+import { useFetch } from '../hooks/useFetch';
 import { useAuth } from '../context/AuthContext';
 import { Loading, EmptyState, StatCard, Badge, Avatar, PageHeader } from '../components/ui/primitives';
 import Modal from '../components/ui/Modal';
@@ -23,12 +23,8 @@ const STATUS_COLORS = {
 };
 
 export default function Dashboard() {
-  const { user } = useAuth();
-  const isSuperAdmin = user?.role === 'super_admin';
-  const [viewUserId, setViewUserId] = useState(''); // '' = my own dashboard
-  const allUsers = useUserOptions();
-  const statsUrl = viewUserId ? `/dashboard/stats?as=${viewUserId}` : '/dashboard/stats';
-  const { data, loading, refetch } = useFetch(statsUrl, [statsUrl]);
+  const { user, isViewing } = useAuth();
+  const { data, loading, refetch } = useFetch('/dashboard/stats', []);
   const [thought, setThought] = useState('');
   const [posting, setPosting] = useState(false);
   const [postMsg, setPostMsg] = useState('');
@@ -74,12 +70,12 @@ export default function Dashboard() {
   if (loading) return <Loading label="Building your dashboard…" />;
   if (!data) return <EmptyState title="No dashboard data" />;
 
-  const { kpis, charts, recentTasks, notices, upcomingHolidays, leaderboard, goodMorningFeed, viewingAs } = data;
-  const viewing = !!viewingAs; // read-only: viewing another user's dashboard
+  const { kpis, charts, recentTasks, notices, upcomingHolidays, leaderboard, goodMorningFeed } = data;
+  const viewing = isViewing; // read-only when a super admin is viewing this user's account
 
   // Project/task widgets only show on the web developer's dashboard. Open Leads
   // is removed everywhere.
-  const isWebDev = (viewingAs?.role || user?.role) === 'web_developer';
+  const isWebDev = user?.role === 'web_developer';
   const hiddenKpis = new Set(['Open Leads']);
   if (!isWebDev) { hiddenKpis.add('My Projects'); hiddenKpis.add('Open Tasks'); }
   const visibleKpis = kpis.filter((k) => !hiddenKpis.has(k.label));
@@ -117,31 +113,9 @@ export default function Dashboard() {
   return (
     <div>
       <PageHeader
-        title={viewing ? `${viewingAs.name}'s dashboard` : `Good day, ${user?.name?.split(' ')[0]} 👋`}
-        subtitle={viewing ? `${ROLE_LABELS[viewingAs.role]} · viewing read-only` : `${ROLE_LABELS[user?.role]} · ${formatDate(new Date(), 'EEEE, dd MMM yyyy')}`}
-      >
-        {isSuperAdmin && (
-          <select
-            className="input max-w-[15rem]"
-            value={viewUserId}
-            onChange={(e) => setViewUserId(e.target.value)}
-            title="View a user's dashboard (read-only)"
-          >
-            <option value="">My dashboard</option>
-            {allUsers.filter((u) => u._id !== user._id).map((u) => (
-              <option key={u._id} value={u._id}>View: {u.name}</option>
-            ))}
-          </select>
-        )}
-      </PageHeader>
-
-      {viewing && (
-        <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-          <Icons.Eye size={16} />
-          You're viewing <b>{viewingAs.name}</b>'s dashboard in read-only mode.
-          <button onClick={() => setViewUserId('')} className="ml-auto font-semibold text-amber-900 underline">Exit</button>
-        </div>
-      )}
+        title={`Good day, ${user?.name?.split(' ')[0]} 👋`}
+        subtitle={`${ROLE_LABELS[user?.role]} · ${formatDate(new Date(), 'EEEE, dd MMM yyyy')}`}
+      />
 
       {/* KPI cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">

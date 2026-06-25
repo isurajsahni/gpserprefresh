@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Menu, Bell, Search, LogOut, User as UserIcon, ChevronDown, Volume2, VolumeX } from 'lucide-react';
+import { Menu, Bell, Search, LogOut, User as UserIcon, ChevronDown, Volume2, VolumeX, Eye } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { useUserOptions } from '../../hooks/useFetch';
 import { ROLE_LABELS } from '../../lib/access';
 import { Avatar } from '../ui/primitives';
 import { timeAgo } from '../../lib/format';
@@ -9,7 +10,9 @@ import { isChatSoundMuted, setChatSoundMuted, playChatChime } from '../../lib/so
 import api from '../../api/client';
 
 export default function Header({ onMenu }) {
-  const { user, logout } = useAuth();
+  const { user, realUser, isViewing, viewAsId, enterViewAs, logout } = useAuth();
+  const canImpersonate = realUser?.role === 'super_admin';
+  const people = useUserOptions();
   const navigate = useNavigate();
   const [unread, setUnread] = useState(0);
   const [notes, setNotes] = useState([]);
@@ -78,6 +81,21 @@ export default function Header({ onMenu }) {
       </div>
 
       <div className="flex flex-1 items-center justify-end gap-2" ref={ref}>
+        {/* View as user (super admin) */}
+        {canImpersonate && (
+          <select
+            value={isViewing ? viewAsId : ''}
+            onChange={(e) => e.target.value && enterViewAs(e.target.value)}
+            className="hidden max-w-[12rem] rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs text-gray-600 sm:block"
+            title="View another user's account (read-only)"
+          >
+            <option value="">View as…</option>
+            {people.filter((p) => p._id !== realUser._id).map((p) => (
+              <option key={p._id} value={p._id}>{p.name}</option>
+            ))}
+          </select>
+        )}
+
         {/* Sound toggle */}
         <button
           onClick={toggleSound}

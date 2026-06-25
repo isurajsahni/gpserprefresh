@@ -65,10 +65,11 @@ export const login = asyncHandler(async (req, res) => {
 
 export const me = asyncHandler(async (req, res) => {
   const user = await User.findById(req.auth.id).populate('reportingManager', 'name role');
-  res.json({ user: publicUser(user) });
+  res.json({ user: publicUser(user), viewAs: !!req.viewAs });
 });
 
 export const updateProfile = asyncHandler(async (req, res) => {
+  if (req.viewAs) throw new ApiError(403, "Read-only: you're viewing another user's account.");
   const user = await User.findById(req.auth.id).select('+passwordHash');
   const { name, phone, department, avatar, currentPassword, newPassword } = req.body;
 

@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { authenticate } from '../middleware/auth.js';
+import { ApiError } from '../utils/ApiError.js';
 import { requireModule, requireRole } from '../middleware/authorize.js';
 import { crudRouter } from './crudRouter.js';
 
@@ -72,6 +73,14 @@ api.use('/auth', authRoutes);
 
 // Everything below requires a valid token.
 api.use(authenticate);
+
+// While viewing another user (super-admin impersonation), block all writes.
+api.use((req, _res, next) => {
+  if (req.viewAs && !['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
+    return next(new ApiError(403, "Read-only: you're viewing another user's account."));
+  }
+  next();
+});
 
 // ---- Access matrix (exposed to client for UI gating) ----
 api.get('/access-matrix', async (_req, res) => {

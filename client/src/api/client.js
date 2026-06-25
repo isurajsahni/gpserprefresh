@@ -12,10 +12,12 @@ const api = axios.create({
   withCredentials: true,
 });
 
-// Attach JWT from localStorage on every request.
+// Attach JWT (and the "view as" header for super-admin impersonation) on every request.
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
   if (token) config.headers.Authorization = `Bearer ${token}`;
+  const viewAsId = localStorage.getItem('viewAsId');
+  if (viewAsId) config.headers['X-View-As'] = viewAsId;
   return config;
 });
 

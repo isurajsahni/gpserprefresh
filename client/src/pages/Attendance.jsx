@@ -137,6 +137,27 @@ export default function Attendance() {
   const present = visible.filter((r) => r.status === 'Present').length;
   const absent = visible.filter((r) => r.status === 'Absent').length;
 
+  // For Week/Month/All ranges, roll up the records into per-employee totals so
+  // the table shows the whole period's hours (not one day at a time).
+  const aggregate = range !== 'today';
+  const aggRows = [];
+  if (aggregate) {
+    const map = new Map();
+    for (const r of visible) {
+      const key = String(r.employee?._id || r.employee || 'me');
+      const cur = map.get(key) || { id: key, employee: r.employee, totalHours: 0, days: 0 };
+      cur.totalHours += r.hoursWorked || 0;
+      cur.days += 1;
+      map.set(key, cur);
+    }
+    for (const a of map.values()) {
+      a.totalHours = Math.round(a.totalHours * 10) / 10;
+      a.avg = a.days ? Math.round((a.totalHours / a.days) * 10) / 10 : 0;
+      aggRows.push(a);
+    }
+    aggRows.sort((x, y) => y.totalHours - x.totalHours);
+  }
+
   return (
     <div>
       <PageHeader title="Attendance" subtitle={isAdmin ? 'Manage and correct any employee’s timings' : teamView ? 'Team attendance & summaries' : 'Your check-in / check-out history'}>
@@ -187,11 +208,26 @@ export default function Attendance() {
             {label}
           </button>
         ))}
-        <span className="ml-auto self-center text-xs text-gray-400">{visible.length} record{visible.length === 1 ? '' : 's'}</span>
+        <span className="ml-auto self-center text-xs text-gray-400">
+          {aggregate ? `${aggRows.length} employee${aggRows.length === 1 ? '' : 's'} · ${visible.length} day${visible.length === 1 ? '' : 's'}` : `${visible.length} record${visible.length === 1 ? '' : 's'}`}
+        </span>
       </div>
 
       {visible.length === 0 ? (
         <EmptyState title="No attendance records" hint={range === 'today' ? 'No check-ins yet today.' : 'Nothing in this period.'} />
+      ) : aggregate ? (
+        <Table columns={['Employee', 'Days', 'Total Hours', 'Avg / Day']}>
+          {aggRows.map((a) => (
+            <tr key={a.id} className="hover:bg-gray-50">
+              <td className="td">
+                <div className="flex items-center gap-2"><Avatar name={a.employee?.name} src={a.employee?.avatar} size={30} /><span className="font-medium text-gray-900">{a.employee?.name || 'You'}</span></div>
+              </td>
+              <td className="td">{a.days}</td>
+              <td className="td font-semibold">{a.totalHours}h</td>
+              <td className="td text-gray-600">{a.avg}h</td>
+            </tr>
+          ))}
+        </Table>
       ) : (
         <Table columns={[teamView ? 'Employee' : null, 'Date', 'Check In', 'Check Out', 'Hours', 'Status', isAdmin ? '' : null].filter((c) => c !== null)}>
           {visible.map((r) => (

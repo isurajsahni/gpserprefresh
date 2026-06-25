@@ -21,6 +21,20 @@ export async function authenticate(req, _res, next) {
 
     req.user = user;
     req.auth = { id: String(user._id), role: user.role };
+
+    // "View as user" (read-only impersonation): a super admin may act with the
+    // identity/scope of another user by sending an X-View-As header. ?real=1
+    // bypasses it (used to fetch the real account). Writes are blocked elsewhere.
+    const viewAsId = req.headers['x-view-as'];
+    if (viewAsId && req.query.real !== '1' && user.role === 'super_admin' && String(viewAsId) !== String(user._id)) {
+      const target = await User.findById(viewAsId).select('-passwordHash');
+      if (target && target.status !== 'Inactive') {
+        req.realUser = user;
+        req.user = target;
+        req.auth = { id: String(target._id), role: target.role };
+        req.viewAs = true;
+      }
+    }
     next();
   } catch (err) {
     if (err.name === 'JsonWebTokenError' || err.name === 'TokenExpiredError') {
