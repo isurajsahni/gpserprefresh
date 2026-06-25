@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { ProtectedRoute, PublicOnlyRoute, ModuleRoute } from './components/RouteGuards';
 import AppLayout from './components/layout/AppLayout';
+import { useAuth } from './context/AuthContext';
 
 import Landing from './pages/public/Landing';
 import Login from './pages/public/Login';
@@ -30,6 +31,13 @@ import NotFound from './pages/NotFound';
 
 const m = (module, el) => <ModuleRoute module={module}>{el}</ModuleRoute>;
 
+// Chat is hidden while a super admin views another user's account (read-only),
+// to keep that user's private messages private. Direct URLs redirect away.
+function ChatRoute() {
+  const { isViewing } = useAuth();
+  return isViewing ? <Navigate to="/dashboard" replace /> : <Chat />;
+}
+
 export default function App() {
   return (
     <Routes>
@@ -48,7 +56,7 @@ export default function App() {
         }
       >
         <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/chat" element={<Chat />} />
+        <Route path="/chat" element={<ChatRoute />} />
         <Route path="/employees" element={m('employees', <Employees />)} />
         <Route path="/attendance" element={m('attendance', <Attendance />)} />
         <Route path="/work-hours" element={m('attendance', <WorkHours />)} />

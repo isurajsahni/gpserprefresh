@@ -9,7 +9,7 @@ import { playChatChime } from '../../lib/sound';
 import api from '../../api/client';
 
 export default function Sidebar({ open, onClose }) {
-  const { user } = useAuth();
+  const { user, isViewing } = useAuth();
   const role = user?.role;
   const [chatUnread, setChatUnread] = useState(0);
   const prevUnreadRef = useRef(null); // null until first load, so we don't chime on mount
@@ -17,7 +17,9 @@ export default function Sidebar({ open, onClose }) {
   // Poll total unread chat so the Chat nav item can show a badge, and play a
   // chime whenever the count rises (a new message arrived). The Chat page
   // dispatches 'chat-unread-changed' when it reads messages, for a snappy refresh.
+  // Skip entirely while viewing another user — their chats are private.
   useEffect(() => {
+    if (isViewing) return undefined;
     let alive = true;
     const load = () =>
       api.get('/chat/unread').then((r) => {
@@ -31,12 +33,17 @@ export default function Sidebar({ open, onClose }) {
     const id = setInterval(load, 10000);
     window.addEventListener('chat-unread-changed', load);
     return () => { alive = false; clearInterval(id); window.removeEventListener('chat-unread-changed', load); };
-  }, []);
+  }, [isViewing]);
 
-  // Filter groups/items by the user's access matrix.
+  // Filter groups/items by the user's access matrix. While viewing another
+  // user (super admin read-only), hide Chat so their private messages stay private.
   const groups = NAV_GROUPS.map((g) => ({
     ...g,
-    items: g.items.filter((item) => item.module === null || hasAccess(item.module, role)),
+    items: g.items.filter(
+      (item) =>
+        !(isViewing && item.path === '/chat') &&
+        (item.module === null || hasAccess(item.module, role)),
+    ),
   })).filter((g) => g.items.length > 0);
 
   return (
