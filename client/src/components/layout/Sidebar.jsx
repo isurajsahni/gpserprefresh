@@ -35,6 +35,10 @@ export default function Sidebar({ open, onClose }) {
     return () => { alive = false; clearInterval(id); window.removeEventListener('chat-unread-changed', load); };
   }, [isViewing]);
 
+  // Projects & Tasks live only on the web developer's menu; everyone else's
+  // sidebar hides the Work group (data access in the matrix is unchanged).
+  const WEB_DEV_ONLY = new Set(['/projects', '/tasks']);
+
   // Filter groups/items by the user's access matrix. While viewing another
   // user (super admin read-only), hide Chat so their private messages stay private.
   const groups = NAV_GROUPS.map((g) => ({
@@ -42,6 +46,7 @@ export default function Sidebar({ open, onClose }) {
     items: g.items.filter(
       (item) =>
         !(isViewing && item.path === '/chat') &&
+        !(WEB_DEV_ONLY.has(item.path) && role !== 'web_developer') &&
         (item.module === null || hasAccess(item.module, role)),
     ),
   })).filter((g) => g.items.length > 0);
