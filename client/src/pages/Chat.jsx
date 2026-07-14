@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Hash, Plus, Send, MessageSquarePlus, Search, Lock, UserPlus, Users, Reply, X, ImagePlus, Mic, Square, Trash2, Loader2, AtSign, Pencil } from 'lucide-react';
+import { Hash, Plus, Send, MessageSquarePlus, Search, Lock, UserPlus, Users, Reply, X, ImagePlus, Mic, Square, Trash2, Loader2, AtSign, Pencil, Bold, Italic, Strikethrough, Code, List, ListOrdered } from 'lucide-react';
 import api from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { useUserOptions } from '../hooks/useFetch';
@@ -7,11 +7,11 @@ import { Avatar, Spinner, EmptyState } from '../components/ui/primitives';
 import Modal from '../components/ui/Modal';
 import { playChatChime } from '../lib/sound';
 import { fileToCompressedDataUrl } from '../lib/upload';
+import { RichText } from '../lib/richtext';
 import { format } from 'date-fns';
 
 // mm:ss label for a voice clip length.
 const fmtDur = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
-const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const blobToDataUrl = (blob) =>
   new Promise((resolve, reject) => {
     const r = new FileReader();
@@ -19,34 +19,6 @@ const blobToDataUrl = (blob) =>
     r.onerror = () => reject(r.error || new Error('Could not read recording'));
     r.readAsDataURL(blob);
   });
-
-// Renders message text with @mentions highlighted (bolder/amber when it targets you).
-function MessageText({ text, mentions, mentionAll, meId }) {
-  if (!text) return null;
-  const list = (mentions || []).filter((m) => m?.name);
-  const byName = new Map(list.map((m) => [m.name, m]));
-  const names = list.map((m) => m.name);
-  if (mentionAll) names.push('all', 'everyone'); // @all / @everyone target the whole channel
-  if (!names.length) return <p className="whitespace-pre-wrap break-words text-sm text-gray-700">{text}</p>;
-  names.sort((a, b) => b.length - a.length);
-  const re = new RegExp(`@(${names.map(escapeRegex).join('|')})`, 'g');
-  const parts = [];
-  let last = 0, match;
-  while ((match = re.exec(text)) !== null) {
-    if (match.index > last) parts.push(text.slice(last, match.index));
-    const mentioned = byName.get(match[1]);
-    // @all/@everyone has no user record and targets everyone (including me).
-    const isMe = mentioned ? String(mentioned._id) === String(meId) : true;
-    parts.push(
-      <span key={match.index} className={`rounded px-0.5 font-semibold ${isMe ? 'bg-amber-100 text-amber-800' : 'text-brand-700'}`}>
-        {match[0]}
-      </span>
-    );
-    last = match.index + match[0].length;
-  }
-  if (last < text.length) parts.push(text.slice(last));
-  return <p className="whitespace-pre-wrap break-words text-sm text-gray-700">{parts}</p>;
-}
 
 // Preview line for a quoted reply that may be an attachment rather than text.
 const replyPreview = (m) => m?.text || (m?.imageUrl ? '📷 Photo' : m?.audioUrl ? '🎤 Voice message' : '');
@@ -200,6 +172,15 @@ export default function Chat() {
     streamRef.current?.getTracks().forEach((t) => t.stop());
   }, []);
 
+  // Auto-grow the composer textarea to fit its content (capped), resetting on send.
+  useEffect(() => {
+    const el = inputRef.current;
+    if (el?.tagName === 'TEXTAREA') {
+      el.style.height = 'auto';
+      el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+    }
+  }, [text]);
+
   const startReply = (m) => {
     setReplyTo(m);
     inputRef.current?.focus();
@@ -254,9 +235,49 @@ export default function Chat() {
     if (mentionCandidates.length && (e.key === 'Enter' || e.key === 'Tab')) {
       e.preventDefault();
       pickMention(mentionCandidates[0]);
-    } else if (e.key === 'Escape' && mentionQuery != null) {
-      setMentionQuery(null);
+      return;
     }
+    if (e.key === 'Escape' && mentionQuery != null) {
+      setMentionQuery(null);
+      return;
+    }
+    // Enter sends; Shift+Enter inserts a newline (multi-line composing).
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      e.currentTarget.form?.requestSubmit();
+    }
+  };
+
+  // Wrap the textarea selection (or insert markers) for a formatting toolbar button.
+  const WRAP = { bold: '**', italic: '_', strike: '~~', code: '`' };
+  const applyFormat = (type) => {
+    const el = inputRef.current;
+    if (!el) return;
+    const start = el.selectionStart ?? text.length;
+    const end = el.selectionEnd ?? text.length;
+    const selected = text.slice(start, end);
+    let next, from, to;
+    if (WRAP[type]) {
+      const w = WRAP[type];
+      const inner = selected || type;
+      next = text.slice(0, start) + w + inner + w + text.slice(end);
+      from = start + w.length;
+      to = from + inner.length;
+    } else {
+      // Line-prefix formats (bullets / numbers / quote).
+      const lineStart = text.lastIndexOf('\n', start - 1) + 1;
+      let lineEnd = text.indexOf('\n', end);
+      if (lineEnd === -1) lineEnd = text.length;
+      const block = text.slice(lineStart, lineEnd) || '';
+      const prefixed = block.split('\n')
+        .map((ln, i) => (type === 'ol' ? `${i + 1}. ` : type === 'ul' ? '- ' : '> ') + ln)
+        .join('\n');
+      next = text.slice(0, lineStart) + prefixed + text.slice(lineEnd);
+      from = lineStart;
+      to = lineStart + prefixed.length;
+    }
+    setText(next);
+    requestAnimationFrame(() => { el.focus(); el.setSelectionRange(from, to); });
   };
 
   // ── Composer: image attachment ───────────────────────────────────────
@@ -478,15 +499,21 @@ export default function Chat() {
                         </div>
                       )}
                       {editing?.id === m._id ? (
-                        <form onSubmit={(e) => { e.preventDefault(); saveEdit(); }} className="mt-1 flex items-center gap-2">
-                          <input autoFocus className="input" value={editing.text}
+                        <form onSubmit={(e) => { e.preventDefault(); saveEdit(); }} className="mt-1 space-y-2">
+                          <textarea autoFocus rows={2} className="input max-h-40 resize-none py-2 leading-5" value={editing.text}
                             onChange={(e) => setEditing({ ...editing, text: e.target.value })}
-                            onKeyDown={(e) => { if (e.key === 'Escape') setEditing(null); }} />
-                          <button type="submit" className="btn-primary btn-sm">Save</button>
-                          <button type="button" onClick={() => setEditing(null)} className="btn-secondary btn-sm">Cancel</button>
+                            onKeyDown={(e) => {
+                              if (e.key === 'Escape') setEditing(null);
+                              else if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveEdit(); }
+                            }} />
+                          <div className="flex gap-2">
+                            <button type="submit" className="btn-primary btn-sm">Save</button>
+                            <button type="button" onClick={() => setEditing(null)} className="btn-secondary btn-sm">Cancel</button>
+                            <span className="self-center text-[11px] text-gray-400">Enter to save · Shift+Enter for a new line</span>
+                          </div>
                         </form>
                       ) : (
-                        <MessageText text={m.text} mentions={m.mentions} mentionAll={m.mentionAll} meId={user._id} />
+                        <RichText text={m.text} mentions={m.mentions} mentionAll={m.mentionAll} meId={user._id} />
                       )}
                       {m.imageUrl && (
                         <a href={m.imageUrl} target="_blank" rel="noreferrer" className="mt-1 inline-block">
@@ -543,7 +570,21 @@ export default function Chat() {
                   </div>
                 )}
 
-                <div className="relative flex items-center gap-2">
+                {/* Formatting toolbar */}
+                {!recording && (
+                  <div className="mb-2 flex items-center gap-0.5">
+                    <button type="button" onClick={() => applyFormat('bold')} className="btn-ghost btn-sm text-gray-500" title="Bold (**text**)"><Bold size={15} /></button>
+                    <button type="button" onClick={() => applyFormat('italic')} className="btn-ghost btn-sm text-gray-500" title="Italic (_text_)"><Italic size={15} /></button>
+                    <button type="button" onClick={() => applyFormat('strike')} className="btn-ghost btn-sm text-gray-500" title="Strikethrough (~~text~~)"><Strikethrough size={15} /></button>
+                    <button type="button" onClick={() => applyFormat('code')} className="btn-ghost btn-sm text-gray-500" title="Code (`text`)"><Code size={15} /></button>
+                    <span className="mx-1 h-4 w-px bg-gray-200" />
+                    <button type="button" onClick={() => applyFormat('ul')} className="btn-ghost btn-sm text-gray-500" title="Bulleted list"><List size={15} /></button>
+                    <button type="button" onClick={() => applyFormat('ol')} className="btn-ghost btn-sm text-gray-500" title="Numbered list"><ListOrdered size={15} /></button>
+                    <span className="ml-auto hidden text-[11px] text-gray-400 sm:inline">Shift+Enter for a new line</span>
+                  </div>
+                )}
+
+                <div className="relative flex items-end gap-2">
                   {/* @mention autocomplete */}
                   {mentionCandidates.length > 0 && (
                     <div className="absolute bottom-full left-0 mb-2 w-64 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg">
@@ -577,14 +618,16 @@ export default function Chat() {
                     </div>
                   ) : (
                     <>
-                      <button type="button" onClick={() => fileRef.current?.click()} disabled={attaching} className="btn-ghost btn-sm shrink-0 text-gray-500" title="Attach image"><ImagePlus size={18} /></button>
-                      <button type="button" onClick={startRecording} disabled={attaching} className="btn-ghost btn-sm shrink-0 text-gray-500" title="Record voice message"><Mic size={18} /></button>
-                      <input ref={inputRef} className="input" placeholder={replyTo ? 'Type your reply…' : `Message ${active.type === 'channel' ? '#' + active.displayName : active.displayName}`}
+                      <button type="button" onClick={() => fileRef.current?.click()} disabled={attaching} className="btn-ghost btn-sm mb-0.5 shrink-0 text-gray-500" title="Attach image"><ImagePlus size={18} /></button>
+                      <button type="button" onClick={startRecording} disabled={attaching} className="btn-ghost btn-sm mb-0.5 shrink-0 text-gray-500" title="Record voice message"><Mic size={18} /></button>
+                      <textarea ref={inputRef} rows={1}
+                        className="input max-h-40 resize-none py-2 leading-5"
+                        placeholder={replyTo ? 'Type your reply…' : `Message ${active.type === 'channel' ? '#' + active.displayName : active.displayName}`}
                         value={text} onChange={onTextChange} onKeyDown={onComposerKeyDown} />
                     </>
                   )}
 
-                  <button disabled={sending || recording || (!text.trim() && !image && !audio)} className="btn-primary shrink-0">
+                  <button disabled={sending || recording || (!text.trim() && !image && !audio)} className="btn-primary mb-0.5 shrink-0">
                     {sending ? <Spinner className="h-5 w-5 text-white" /> : <Send size={18} />}
                   </button>
                 </div>
