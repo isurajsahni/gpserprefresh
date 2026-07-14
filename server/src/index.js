@@ -3,6 +3,7 @@ import './config/timezone.js'; // must precede any Date usage — sets TZ to Asi
 import { createApp } from './app.js';
 import { connectDB } from './config/db.js';
 import { sweepStaleSessions } from './controllers/workflowController.js';
+import { emailUnseenChatDigests } from './controllers/chatController.js';
 
 const PORT = process.env.PORT || 5000;
 
@@ -23,6 +24,9 @@ async function start() {
 
     // Auto-clock-out abandoned sessions (closed app / stale heartbeat) every minute.
     setInterval(() => sweepStaleSessions().catch((e) => console.error('sweep error:', e.message)), 60000);
+
+    // Email people about chat messages they've left unread for over an hour (every 15 min).
+    setInterval(() => emailUnseenChatDigests().catch((e) => console.error('chat digest error:', e.message)), 15 * 60 * 1000);
   } catch (err) {
     console.error('❌ Failed to start server:', err.message);
     process.exit(1);

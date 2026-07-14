@@ -107,6 +107,41 @@ export function credentialsEmail({ name, email, password, employeeId, role, logi
   return { html, text };
 }
 
+/** Public base URL for links in emails — never localhost. */
+export function appBaseUrl() {
+  const origins = (process.env.CLIENT_URL || '').split(',').map((s) => s.trim()).filter(Boolean);
+  const httpsOrigin = origins.find((o) => o.startsWith('https://'));
+  return (process.env.APP_URL || httpsOrigin || 'https://gpserprefresh-client.vercel.app').replace(/\/+$/, '');
+}
+
+/** Branded HTML reminding a user of chat messages they haven't opened. */
+export function unseenChatEmail({ name, count, senders = [] }) {
+  const who = senders.length ? senders.join(', ') : 'your teammates';
+  const chatUrl = `${appBaseUrl()}/chat`;
+  const plural = count === 1 ? 'message' : 'messages';
+  const text =
+    `Hi ${name},\n\n` +
+    `You have ${count} unread chat ${plural} on GPSFDK ERP from ${who}.\n\n` +
+    `Open the chat to catch up: ${chatUrl}`;
+
+  const html = `
+  <div style="font-family:Inter,Arial,sans-serif;max-width:520px;margin:0 auto;color:#111827">
+    <div style="background:#0b5d3b;border-radius:12px 12px 0 0;padding:24px 28px;color:#fff">
+      <h1 style="margin:0;font-size:20px;font-weight:800">GPSFDK.com</h1>
+      <p style="margin:2px 0 0;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#bbf7d0">Enterprise Resource Planning</p>
+    </div>
+    <div style="border:1px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px;padding:28px">
+      <h2 style="margin:0 0 8px;font-size:18px">You have unread messages 💬</h2>
+      <p style="color:#4b5563;font-size:14px;margin:0 0 8px">Hi ${name}, you have <b>${count}</b> unread chat ${plural} waiting for you.</p>
+      <p style="color:#4b5563;font-size:14px;margin:0 0 20px">From: <b>${who}</b></p>
+      <a href="${chatUrl}" style="display:inline-block;margin:4px 0 8px;background:#0b5d3b;color:#fff;text-decoration:none;font-weight:600;font-size:14px;padding:11px 22px;border-radius:8px">Open chat</a>
+      <p style="color:#9ca3af;font-size:12px;margin:16px 0 0">You're getting this because these messages have been unread for over an hour. Open the chat to stop these reminders.</p>
+    </div>
+  </div>`;
+
+  return { html, text };
+}
+
 /** Branded HTML for the password-reset OTP email. */
 export function otpEmail({ name, otp, minutes = 10 }) {
   const text =

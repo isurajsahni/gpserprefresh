@@ -20,20 +20,23 @@ const blobToDataUrl = (blob) =>
     r.readAsDataURL(blob);
   });
 
-// Renders message text with @mentions highlighted (bolder/amber when it's you).
-function MessageText({ text, mentions, meId }) {
+// Renders message text with @mentions highlighted (bolder/amber when it targets you).
+function MessageText({ text, mentions, mentionAll, meId }) {
   if (!text) return null;
   const list = (mentions || []).filter((m) => m?.name);
-  if (!list.length) return <p className="whitespace-pre-wrap break-words text-sm text-gray-700">{text}</p>;
   const byName = new Map(list.map((m) => [m.name, m]));
-  const names = list.map((m) => m.name).sort((a, b) => b.length - a.length);
+  const names = list.map((m) => m.name);
+  if (mentionAll) names.push('all', 'everyone'); // @all / @everyone target the whole channel
+  if (!names.length) return <p className="whitespace-pre-wrap break-words text-sm text-gray-700">{text}</p>;
+  names.sort((a, b) => b.length - a.length);
   const re = new RegExp(`@(${names.map(escapeRegex).join('|')})`, 'g');
   const parts = [];
   let last = 0, match;
   while ((match = re.exec(text)) !== null) {
     if (match.index > last) parts.push(text.slice(last, match.index));
     const mentioned = byName.get(match[1]);
-    const isMe = String(mentioned?._id) === String(meId);
+    // @all/@everyone has no user record and targets everyone (including me).
+    const isMe = mentioned ? String(mentioned._id) === String(meId) : true;
     parts.push(
       <span key={match.index} className={`rounded px-0.5 font-semibold ${isMe ? 'bg-amber-100 text-amber-800' : 'text-brand-700'}`}>
         {match[0]}
@@ -222,8 +225,13 @@ export default function Chat() {
 
   // ── Composer: @mentions ──────────────────────────────────────────────
   // Candidate people for the current @token (null token = dropdown hidden).
-  const mentionCandidates = mentionQuery == null ? [] :
+  // A special "Everyone" (@all) entry leads the list when the token matches.
+  const mentionMatches = mentionQuery == null ? [] :
     users.filter((u) => u._id !== user._id && u.name.toLowerCase().includes(mentionQuery.toLowerCase())).slice(0, 6);
+  const showEveryone = mentionQuery != null &&
+    ('all'.startsWith(mentionQuery.toLowerCase()) || 'everyone'.startsWith(mentionQuery.toLowerCase()));
+  const mentionCandidates = mentionQuery == null ? []
+    : [...(showEveryone ? [{ _id: '__all__', name: 'all', label: 'Everyone', special: true }] : []), ...mentionMatches];
 
   const onTextChange = (e) => {
     const val = e.target.value;
@@ -236,7 +244,8 @@ export default function Chat() {
 
   const pickMention = (u) => {
     setText((val) => val.replace(/@(\w*)$/, `@${u.name} `));
-    setMentions((prev) => (prev.some((x) => x._id === u._id) ? prev : [...prev, { _id: u._id, name: u.name }]));
+    // @all is not a real user — don't track it as an individual mention.
+    if (!u.special) setMentions((prev) => (prev.some((x) => x._id === u._id) ? prev : [...prev, { _id: u._id, name: u.name }]));
     setMentionQuery(null);
     inputRef.current?.focus();
   };
@@ -316,12 +325,14 @@ export default function Chat() {
     try {
       // Only send mention ids whose @Name still appears in the final text.
       const usedMentions = mentions.filter((m) => body.includes(`@${m.name}`)).map((m) => m._id);
+      const mentionEveryone = /(^|\s)@(all|everyone)\b/i.test(body);
       const { data } = await api.post(`/chat/channels/${activeId}/messages`, {
         text: body,
         imageUrl: image || '',
         audioUrl: audio?.url || '',
         audioDuration: audio?.duration || 0,
         mentions: usedMentions,
+        mentionEveryone,
         replyTo: replyTo?._id || null,
       });
       addMessages([data]); // deduped — a racing poll can't add it twice
@@ -475,7 +486,7 @@ export default function Chat() {
                           <button type="button" onClick={() => setEditing(null)} className="btn-secondary btn-sm">Cancel</button>
                         </form>
                       ) : (
-                        <MessageText text={m.text} mentions={m.mentions} meId={user._id} />
+                        <MessageText text={m.text} mentions={m.mentions} mentionAll={m.mentionAll} meId={user._id} />
                       )}
                       {m.imageUrl && (
                         <a href={m.imageUrl} target="_blank" rel="noreferrer" className="mt-1 inline-block">
@@ -540,9 +551,13 @@ export default function Chat() {
                       {mentionCandidates.map((u) => (
                         <button key={u._id} type="button" onMouseDown={(e) => { e.preventDefault(); pickMention(u); }}
                           className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-gray-50">
-                          <Avatar name={u.name} src={u.avatar} size={24} />
-                          <span className="font-medium text-gray-900">{u.name}</span>
-                          <span className="ml-auto text-xs text-gray-400">{u.department}</span>
+                          {u.special ? (
+                            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-brand-100 text-brand-700"><Users size={14} /></span>
+                          ) : (
+                            <Avatar name={u.name} src={u.avatar} size={24} />
+                          )}
+                          <span className="font-medium text-gray-900">{u.special ? 'Everyone' : u.name}</span>
+                          <span className="ml-auto text-xs text-gray-400">{u.special ? 'Notify the whole channel' : u.department}</span>
                         </button>
                       ))}
                     </div>

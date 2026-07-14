@@ -5,6 +5,7 @@ import { User } from '../models/User.js';
 import { Notification } from '../models/Notification.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { ApiError } from '../utils/ApiError.js';
+import { sendMail, unseenChatEmail } from '../utils/mailer.js';
 
 // Ensures a default open #general channel exists.
 async function ensureGeneral() {
@@ -131,20 +132,22 @@ function previewOf(message) {
 }
 
 // Fan out a chat notification to every recipient so it surfaces in their bell/inbox.
-// Recipients who were @-mentioned get a distinct "mentioned you" title.
+// Recipients who were @-mentioned (or everyone, on @all) get a "mentioned you" title.
 async function notifyRecipients(channel, message, senderName) {
   const recipients = await recipientsFor(channel, message.sender);
   if (!recipients.length) return;
   const mentioned = new Set((message.mentions || []).map((m) => String(m)));
+  const all = !!message.mentionAll;
   const where = channel.type === 'direct' ? '' : ` in #${channel.name}`;
   const label = channel.type === 'direct' ? senderName : `${senderName}${where}`;
   const snippet = previewOf(message);
   await Notification.insertMany(
     recipients.map((rid) => ({
-      title: mentioned.has(String(rid)) ? `${senderName} mentioned you${where}` : label,
+      title: all || mentioned.has(String(rid)) ? `${senderName} mentioned you${where}` : label,
       message: snippet,
       type: 'chat',
       channel: channel._id,
+      sender: message.sender,
       recipient: rid,
     }))
   );
@@ -162,6 +165,7 @@ export const sendMessage = asyncHandler(async (req, res) => {
   // De-dupe mention ids and keep only valid ObjectIds.
   const mentions = [...new Set((Array.isArray(req.body.mentions) ? req.body.mentions : []).map(String))]
     .filter((id) => mongoose.isValidObjectId(id));
+  const mentionAll = !!req.body.mentionEveryone;
 
   // Optional quoted reply — only accept an id that belongs to this channel.
   let replyTo = null;
@@ -171,7 +175,7 @@ export const sendMessage = asyncHandler(async (req, res) => {
   }
 
   const msg = await Message.create({
-    channel: req.params.id, sender: req.auth.id, text, imageUrl, audioUrl, audioDuration, mentions, replyTo,
+    channel: req.params.id, sender: req.auth.id, text, imageUrl, audioUrl, audioDuration, mentions, mentionAll, replyTo,
   });
   await Channel.findByIdAndUpdate(req.params.id, { lastMessageAt: new Date() });
   const populated = await Message.findById(msg._id)
@@ -272,3 +276,46 @@ export const addMembers = asyncHandler(async (req, res) => {
   const populated = await Channel.findById(req.params.id).populate('members', 'name role avatar');
   res.json(decorate(populated, req.auth.id));
 });
+
+// How long a chat message may sit unread before we email the recipient a reminder.
+const UNSEEN_EMAIL_AFTER_MS = 60 * 60 * 1000; // 1 hour
+
+// Background job: email people who still have chat messages they haven't opened
+// after an hour. Each notification is emailed at most once (the `emailed` flag),
+// so this reminds without spamming. Meant to run on an interval.
+export async function emailUnseenChatDigests() {
+  const cutoff = new Date(Date.now() - UNSEEN_EMAIL_AFTER_MS);
+  const pending = await Notification.find({
+    type: 'chat',
+    read: false,
+    emailed: { $ne: true },
+    recipient: { $ne: null },
+    createdAt: { $lt: cutoff },
+  }).populate('sender', 'name');
+  if (!pending.length) return;
+
+  // Group the unseen notifications by recipient.
+  const byRecipient = new Map();
+  for (const n of pending) {
+    const key = String(n.recipient);
+    if (!byRecipient.has(key)) byRecipient.set(key, []);
+    byRecipient.get(key).push(n);
+  }
+
+  for (const [recipientId, notes] of byRecipient) {
+    const recipient = await User.findById(recipientId).select('name email status');
+    if (!recipient?.email || recipient.status === 'Inactive') continue;
+    const senders = [...new Set(notes.map((n) => n.sender?.name).filter(Boolean))];
+    const count = notes.length;
+    const { html, text } = unseenChatEmail({ name: recipient.name, count, senders });
+    await sendMail({
+      to: recipient.email,
+      subject: `You have ${count} unread chat message${count === 1 ? '' : 's'} on GPSFDK ERP`,
+      html,
+      text,
+    }).catch((e) => console.error('chat digest send error:', e.message));
+  }
+
+  // Mark them emailed regardless of send outcome so we don't re-notify in a loop.
+  await Notification.updateMany({ _id: { $in: pending.map((n) => n._id) } }, { emailed: true });
+}

@@ -14,6 +14,8 @@ const messageSchema = new mongoose.Schema(
     edited: { type: Boolean, default: false },
     // Users @-mentioned in the text.
     mentions: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+    // True when the message used @all to mention everyone in the channel.
+    mentionAll: { type: Boolean, default: false },
     // The message this one is replying to (quoted), if any.
     replyTo: { type: mongoose.Schema.Types.ObjectId, ref: 'Message', default: null },
   },
