@@ -12,10 +12,12 @@ export function cloudinaryConfigured() {
 }
 
 /**
- * Upload an image (a base64 data URL or a remote URL) to Cloudinary using a
+ * Upload a file (a base64 data URL or a remote URL) to Cloudinary using a
  * signed request — no SDK or multipart parsing needed. Returns the secure URL.
+ * `resourceType` is 'image' for pictures or 'video' for audio/video (Cloudinary
+ * serves audio through its video pipeline).
  */
-export async function uploadImage(file, folder = 'gpsfdk') {
+export async function uploadImage(file, folder = 'gpsfdk', resourceType = 'image') {
   const { cloud, key, secret } = cfg();
   const timestamp = Math.floor(Date.now() / 1000);
 
@@ -31,7 +33,7 @@ export async function uploadImage(file, folder = 'gpsfdk') {
   form.append('folder', folder);
   form.append('signature', signature);
 
-  const res = await fetch(`https://api.cloudinary.com/v1_1/${cloud}/image/upload`, {
+  const res = await fetch(`https://api.cloudinary.com/v1_1/${cloud}/${resourceType}/upload`, {
     method: 'POST',
     body: form,
   });

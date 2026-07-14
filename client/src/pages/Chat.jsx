@@ -1,12 +1,52 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Hash, Plus, Send, MessageSquarePlus, Search, Lock, UserPlus, Users, Reply, X } from 'lucide-react';
+import { Hash, Plus, Send, MessageSquarePlus, Search, Lock, UserPlus, Users, Reply, X, ImagePlus, Mic, Square, Trash2, Loader2, AtSign } from 'lucide-react';
 import api from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { useUserOptions } from '../hooks/useFetch';
 import { Avatar, Spinner, EmptyState } from '../components/ui/primitives';
 import Modal from '../components/ui/Modal';
 import { playChatChime } from '../lib/sound';
+import { fileToCompressedDataUrl } from '../lib/upload';
 import { format } from 'date-fns';
+
+// mm:ss label for a voice clip length.
+const fmtDur = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const blobToDataUrl = (blob) =>
+  new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result);
+    r.onerror = () => reject(r.error || new Error('Could not read recording'));
+    r.readAsDataURL(blob);
+  });
+
+// Renders message text with @mentions highlighted (bolder/amber when it's you).
+function MessageText({ text, mentions, meId }) {
+  if (!text) return null;
+  const list = (mentions || []).filter((m) => m?.name);
+  if (!list.length) return <p className="whitespace-pre-wrap break-words text-sm text-gray-700">{text}</p>;
+  const byName = new Map(list.map((m) => [m.name, m]));
+  const names = list.map((m) => m.name).sort((a, b) => b.length - a.length);
+  const re = new RegExp(`@(${names.map(escapeRegex).join('|')})`, 'g');
+  const parts = [];
+  let last = 0, match;
+  while ((match = re.exec(text)) !== null) {
+    if (match.index > last) parts.push(text.slice(last, match.index));
+    const mentioned = byName.get(match[1]);
+    const isMe = String(mentioned?._id) === String(meId);
+    parts.push(
+      <span key={match.index} className={`rounded px-0.5 font-semibold ${isMe ? 'bg-amber-100 text-amber-800' : 'text-brand-700'}`}>
+        {match[0]}
+      </span>
+    );
+    last = match.index + match[0].length;
+  }
+  if (last < text.length) parts.push(text.slice(last));
+  return <p className="whitespace-pre-wrap break-words text-sm text-gray-700">{parts}</p>;
+}
+
+// Preview line for a quoted reply that may be an attachment rather than text.
+const replyPreview = (m) => m?.text || (m?.imageUrl ? '📷 Photo' : m?.audioUrl ? '🎤 Voice message' : '');
 
 // Let the sidebar badge refresh promptly when we read/receive chat.
 const pingUnread = () => window.dispatchEvent(new Event('chat-unread-changed'));
@@ -26,13 +66,27 @@ export default function Chat() {
   const [userQuery, setUserQuery] = useState('');
   const [addQuery, setAddQuery] = useState('');
   const [replyTo, setReplyTo] = useState(null); // message being replied to
+  const [image, setImage] = useState('');       // pending image attachment url
+  const [audio, setAudio] = useState(null);      // pending voice clip { url, duration }
+  const [mentions, setMentions] = useState([]);  // [{ _id, name }] tracked while composing
+  const [mentionQuery, setMentionQuery] = useState(null); // current @token being typed, or null
+  const [attaching, setAttaching] = useState(false); // uploading an image/voice clip
+  const [recording, setRecording] = useState(false);
+  const [recordSecs, setRecordSecs] = useState(0);
 
   const activeRef = useRef(null);
   const lastTsRef = useRef(null);
   const bottomRef = useRef(null);
   const inputRef = useRef(null);
+  const fileRef = useRef(null); // hidden image file input
   const seenRef = useRef(new Set()); // message ids already shown (dedupe poll/send races)
   const sendingRef = useRef(false); // synchronous guard against double-submit
+  const mediaRef = useRef(null); // MediaRecorder
+  const streamRef = useRef(null); // mic stream (to stop tracks)
+  const chunksRef = useRef([]); // recorded audio chunks
+  const recTimerRef = useRef(null); // 1s tick interval
+  const recStartRef = useRef(0); // recording start timestamp
+  const cancelRecRef = useRef(false); // set when a recording is discarded rather than sent
 
   const active = channels.find((c) => c._id === activeId);
 
@@ -131,25 +185,128 @@ export default function Chat() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Drop any in-progress reply when switching conversations.
-  useEffect(() => { setReplyTo(null); }, [activeId]);
+  // Drop any in-progress draft when switching conversations.
+  useEffect(() => {
+    setReplyTo(null); setText(''); setImage(''); setAudio(null); setMentions([]); setMentionQuery(null);
+  }, [activeId]);
+
+  // Stop the mic and timers if the component unmounts mid-recording.
+  useEffect(() => () => {
+    clearInterval(recTimerRef.current);
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+  }, []);
 
   const startReply = (m) => {
     setReplyTo(m);
     inputRef.current?.focus();
   };
 
+  // ── Composer: @mentions ──────────────────────────────────────────────
+  // Candidate people for the current @token (null token = dropdown hidden).
+  const mentionCandidates = mentionQuery == null ? [] :
+    users.filter((u) => u._id !== user._id && u.name.toLowerCase().includes(mentionQuery.toLowerCase())).slice(0, 6);
+
+  const onTextChange = (e) => {
+    const val = e.target.value;
+    setText(val);
+    // Detect an @token being typed at the caret (letters/numbers, no spaces yet).
+    const caret = e.target.selectionStart ?? val.length;
+    const m = val.slice(0, caret).match(/@(\w*)$/);
+    setMentionQuery(m ? m[1] : null);
+  };
+
+  const pickMention = (u) => {
+    setText((val) => val.replace(/@(\w*)$/, `@${u.name} `));
+    setMentions((prev) => (prev.some((x) => x._id === u._id) ? prev : [...prev, { _id: u._id, name: u.name }]));
+    setMentionQuery(null);
+    inputRef.current?.focus();
+  };
+
+  const onComposerKeyDown = (e) => {
+    if (mentionCandidates.length && (e.key === 'Enter' || e.key === 'Tab')) {
+      e.preventDefault();
+      pickMention(mentionCandidates[0]);
+    } else if (e.key === 'Escape' && mentionQuery != null) {
+      setMentionQuery(null);
+    }
+  };
+
+  // ── Composer: image attachment ───────────────────────────────────────
+  const onPickImage = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setAttaching(true);
+    try {
+      const dataUrl = await fileToCompressedDataUrl(file);
+      const { data } = await api.post('/uploads', { image: dataUrl, folder: 'chat' });
+      setImage(data.url);
+    } catch { /* ignore — user can retry */ } finally { setAttaching(false); }
+  };
+
+  // ── Composer: voice message ──────────────────────────────────────────
+  const startRecording = async () => {
+    if (recording) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+      const mr = new MediaRecorder(stream);
+      chunksRef.current = [];
+      cancelRecRef.current = false;
+      mr.ondataavailable = (ev) => { if (ev.data.size) chunksRef.current.push(ev.data); };
+      mr.onstop = finishRecording;
+      mediaRef.current = mr;
+      recStartRef.current = Date.now();
+      mr.start();
+      setRecording(true);
+      setRecordSecs(0);
+      recTimerRef.current = setInterval(() => setRecordSecs((s) => s + 1), 1000);
+    } catch {
+      alert('Microphone access is needed to record a voice message.');
+    }
+  };
+
+  const stopRecording = () => mediaRef.current?.stop();     // -> finishRecording (upload)
+  const cancelRecording = () => { cancelRecRef.current = true; mediaRef.current?.stop(); };
+
+  const finishRecording = async () => {
+    clearInterval(recTimerRef.current);
+    setRecording(false);
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+    const secs = Math.max(1, Math.round((Date.now() - recStartRef.current) / 1000));
+    const chunks = chunksRef.current;
+    chunksRef.current = [];
+    if (cancelRecRef.current) { cancelRecRef.current = false; return; } // discarded
+    const blob = new Blob(chunks, { type: mediaRef.current?.mimeType || 'audio/webm' });
+    if (!blob.size) return;
+    setAttaching(true);
+    try {
+      const dataUrl = await blobToDataUrl(blob);
+      const { data } = await api.post('/uploads', { file: dataUrl, folder: 'chat-audio' });
+      setAudio({ url: data.url, duration: secs });
+    } catch { /* ignore */ } finally { setAttaching(false); }
+  };
+
   const send = async (e) => {
     e.preventDefault();
     const body = text.trim();
-    if (!body || sendingRef.current) return; // ref guard: blocks a fast double-submit synchronously
+    if ((!body && !image && !audio) || sendingRef.current) return; // ref guard blocks a fast double-submit
     sendingRef.current = true;
     setSending(true);
     try {
-      const { data } = await api.post(`/chat/channels/${activeId}/messages`, { text: body, replyTo: replyTo?._id || null });
+      // Only send mention ids whose @Name still appears in the final text.
+      const usedMentions = mentions.filter((m) => body.includes(`@${m.name}`)).map((m) => m._id);
+      const { data } = await api.post(`/chat/channels/${activeId}/messages`, {
+        text: body,
+        imageUrl: image || '',
+        audioUrl: audio?.url || '',
+        audioDuration: audio?.duration || 0,
+        mentions: usedMentions,
+        replyTo: replyTo?._id || null,
+      });
       addMessages([data]); // deduped — a racing poll can't add it twice
-      setText('');
-      setReplyTo(null);
+      setText(''); setImage(''); setAudio(null); setMentions([]); setMentionQuery(null); setReplyTo(null);
       loadChannels(false);
     } finally {
       sendingRef.current = false;
@@ -276,10 +433,21 @@ export default function Chat() {
                         <div className="mt-1 flex items-center gap-1.5 rounded border-l-2 border-brand-400 bg-gray-50 px-2 py-1 text-xs">
                           <Reply size={11} className="shrink-0 text-brand-500" />
                           <span className="font-semibold text-gray-600">{m.replyTo.sender?.name || 'Unknown'}</span>
-                          <span className="truncate text-gray-500">{m.replyTo.text}</span>
+                          <span className="truncate text-gray-500">{replyPreview(m.replyTo)}</span>
                         </div>
                       )}
-                      <p className="whitespace-pre-wrap break-words text-sm text-gray-700">{m.text}</p>
+                      <MessageText text={m.text} mentions={m.mentions} meId={user._id} />
+                      {m.imageUrl && (
+                        <a href={m.imageUrl} target="_blank" rel="noreferrer" className="mt-1 inline-block">
+                          <img src={m.imageUrl} alt="attachment" className="max-h-64 max-w-[260px] rounded-lg border border-gray-200 object-cover hover:opacity-90" />
+                        </a>
+                      )}
+                      {m.audioUrl && (
+                        <div className="mt-1 flex items-center gap-2">
+                          <audio controls src={m.audioUrl} className="h-9 max-w-[260px]" />
+                          {m.audioDuration > 0 && <span className="text-[11px] text-gray-400">{fmtDur(m.audioDuration)}</span>}
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
@@ -295,19 +463,76 @@ export default function Chat() {
                     <p className="text-xs font-semibold text-gray-700">
                       Replying to {String(replyTo.sender?._id) === String(user._id) ? 'yourself' : replyTo.sender?.name}
                     </p>
-                    <p className="truncate text-xs text-gray-500">{replyTo.text}</p>
+                    <p className="truncate text-xs text-gray-500">{replyPreview(replyTo)}</p>
                   </div>
-                  <button onClick={() => setReplyTo(null)} className="shrink-0 text-gray-400 hover:text-gray-700" title="Cancel reply">
+                  <button type="button" onClick={() => setReplyTo(null)} className="shrink-0 text-gray-400 hover:text-gray-700" title="Cancel reply">
                     <X size={16} />
                   </button>
                 </div>
               )}
-              <form onSubmit={send} className="flex items-center gap-2 px-4 py-3">
-                <input ref={inputRef} className="input" placeholder={replyTo ? 'Type your reply…' : `Message ${active.type === 'channel' ? '#' + active.displayName : active.displayName}`}
-                  value={text} onChange={(e) => setText(e.target.value)} />
-                <button disabled={sending || !text.trim()} className="btn-primary">
-                  {sending ? <Spinner className="h-5 w-5 text-white" /> : <Send size={18} />}
-                </button>
+              <form onSubmit={send} className="px-4 py-3">
+                {/* Pending attachments */}
+                {(image || audio || attaching) && (
+                  <div className="mb-2 flex flex-wrap items-center gap-2">
+                    {image && (
+                      <div className="relative">
+                        <img src={image} alt="pending" className="h-16 w-16 rounded-lg border border-gray-200 object-cover" />
+                        <button type="button" onClick={() => setImage('')} className="absolute -right-2 -top-2 rounded-full bg-red-500 p-0.5 text-white shadow hover:bg-red-600" title="Remove image"><X size={12} /></button>
+                      </div>
+                    )}
+                    {audio && (
+                      <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-2 py-1.5">
+                        <Mic size={14} className="text-brand-600" />
+                        <audio controls src={audio.url} className="h-8 max-w-[200px]" />
+                        <span className="text-[11px] text-gray-400">{fmtDur(audio.duration)}</span>
+                        <button type="button" onClick={() => setAudio(null)} className="text-gray-400 hover:text-red-600" title="Remove voice message"><Trash2 size={14} /></button>
+                      </div>
+                    )}
+                    {attaching && <span className="flex items-center gap-1.5 text-xs text-gray-400"><Loader2 size={14} className="animate-spin" /> Uploading…</span>}
+                  </div>
+                )}
+
+                <div className="relative flex items-center gap-2">
+                  {/* @mention autocomplete */}
+                  {mentionCandidates.length > 0 && (
+                    <div className="absolute bottom-full left-0 mb-2 w-64 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg">
+                      <p className="flex items-center gap-1 border-b border-gray-100 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-gray-400"><AtSign size={11} /> Mention</p>
+                      {mentionCandidates.map((u) => (
+                        <button key={u._id} type="button" onMouseDown={(e) => { e.preventDefault(); pickMention(u); }}
+                          className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-gray-50">
+                          <Avatar name={u.name} src={u.avatar} size={24} />
+                          <span className="font-medium text-gray-900">{u.name}</span>
+                          <span className="ml-auto text-xs text-gray-400">{u.department}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={onPickImage} />
+
+                  {recording ? (
+                    <div className="flex flex-1 items-center gap-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2">
+                      <span className="relative flex h-2.5 w-2.5">
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-70" />
+                        <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-600" />
+                      </span>
+                      <span className="text-sm font-medium text-red-700">Recording… {fmtDur(recordSecs)}</span>
+                      <button type="button" onClick={cancelRecording} className="ml-auto text-gray-500 hover:text-gray-700" title="Discard"><Trash2 size={16} /></button>
+                      <button type="button" onClick={stopRecording} className="btn-primary btn-sm" title="Stop & attach"><Square size={14} /> Stop</button>
+                    </div>
+                  ) : (
+                    <>
+                      <button type="button" onClick={() => fileRef.current?.click()} disabled={attaching} className="btn-ghost btn-sm shrink-0 text-gray-500" title="Attach image"><ImagePlus size={18} /></button>
+                      <button type="button" onClick={startRecording} disabled={attaching} className="btn-ghost btn-sm shrink-0 text-gray-500" title="Record voice message"><Mic size={18} /></button>
+                      <input ref={inputRef} className="input" placeholder={replyTo ? 'Type your reply…' : `Message ${active.type === 'channel' ? '#' + active.displayName : active.displayName}`}
+                        value={text} onChange={onTextChange} onKeyDown={onComposerKeyDown} />
+                    </>
+                  )}
+
+                  <button disabled={sending || recording || (!text.trim() && !image && !audio)} className="btn-primary shrink-0">
+                    {sending ? <Spinner className="h-5 w-5 text-white" /> : <Send size={18} />}
+                  </button>
+                </div>
               </form>
             </div>
           </>

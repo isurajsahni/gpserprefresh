@@ -95,8 +95,8 @@ async function assertAccess(channelId, userId) {
   return channel;
 }
 
-// Populate spec for a quoted reply (the original message's text + author name).
-const REPLY_POPULATE = { path: 'replyTo', select: 'text sender', populate: { path: 'sender', select: 'name' } };
+// Populate spec for a quoted reply (the original message's text/attachment + author name).
+const REPLY_POPULATE = { path: 'replyTo', select: 'text imageUrl audioUrl sender', populate: { path: 'sender', select: 'name' } };
 
 // GET /api/chat/channels/:id/messages?after=<ISO>
 export const listMessages = asyncHandler(async (req, res) => {
@@ -105,6 +105,7 @@ export const listMessages = asyncHandler(async (req, res) => {
   if (req.query.after) filter.createdAt = { $gt: new Date(req.query.after) };
   const messages = await Message.find(filter)
     .populate('sender', 'name role avatar')
+    .populate('mentions', 'name')
     .populate(REPLY_POPULATE)
     .sort('createdAt')
     .limit(200);
@@ -121,16 +122,26 @@ async function recipientsFor(channel, senderId) {
   return (channel.members || []).filter((m) => String(m) !== String(senderId));
 }
 
+// A short preview line for notifications/quoted replies.
+function previewOf(message) {
+  if (message.text) return message.text.length > 140 ? `${message.text.slice(0, 140)}…` : message.text;
+  if (message.imageUrl) return '📷 Photo';
+  if (message.audioUrl) return '🎤 Voice message';
+  return '';
+}
+
 // Fan out a chat notification to every recipient so it surfaces in their bell/inbox.
+// Recipients who were @-mentioned get a distinct "mentioned you" title.
 async function notifyRecipients(channel, message, senderName) {
   const recipients = await recipientsFor(channel, message.sender);
   if (!recipients.length) return;
-  const label =
-    channel.type === 'direct' ? senderName : `${senderName} in #${channel.name}`;
-  const snippet = message.text.length > 140 ? `${message.text.slice(0, 140)}…` : message.text;
+  const mentioned = new Set((message.mentions || []).map((m) => String(m)));
+  const where = channel.type === 'direct' ? '' : ` in #${channel.name}`;
+  const label = channel.type === 'direct' ? senderName : `${senderName}${where}`;
+  const snippet = previewOf(message);
   await Notification.insertMany(
     recipients.map((rid) => ({
-      title: label,
+      title: mentioned.has(String(rid)) ? `${senderName} mentioned you${where}` : label,
       message: snippet,
       type: 'chat',
       channel: channel._id,
@@ -139,11 +150,18 @@ async function notifyRecipients(channel, message, senderName) {
   );
 }
 
-// POST /api/chat/channels/:id/messages  { text }
+// POST /api/chat/channels/:id/messages  { text?, imageUrl?, audioUrl?, audioDuration?, mentions?, replyTo? }
 export const sendMessage = asyncHandler(async (req, res) => {
   const channel = await assertAccess(req.params.id, req.auth.id);
   const text = (req.body.text || '').trim();
-  if (!text) throw new ApiError(400, 'Message cannot be empty');
+  const imageUrl = (req.body.imageUrl || '').trim();
+  const audioUrl = (req.body.audioUrl || '').trim();
+  const audioDuration = Number(req.body.audioDuration) || 0;
+  if (!text && !imageUrl && !audioUrl) throw new ApiError(400, 'Message cannot be empty');
+
+  // De-dupe mention ids and keep only valid ObjectIds.
+  const mentions = [...new Set((Array.isArray(req.body.mentions) ? req.body.mentions : []).map(String))]
+    .filter((id) => mongoose.isValidObjectId(id));
 
   // Optional quoted reply — only accept an id that belongs to this channel.
   let replyTo = null;
@@ -152,10 +170,13 @@ export const sendMessage = asyncHandler(async (req, res) => {
     if (parent && String(parent.channel) === String(req.params.id)) replyTo = parent._id;
   }
 
-  const msg = await Message.create({ channel: req.params.id, sender: req.auth.id, text, replyTo });
+  const msg = await Message.create({
+    channel: req.params.id, sender: req.auth.id, text, imageUrl, audioUrl, audioDuration, mentions, replyTo,
+  });
   await Channel.findByIdAndUpdate(req.params.id, { lastMessageAt: new Date() });
   const populated = await Message.findById(msg._id)
     .populate('sender', 'name role avatar')
+    .populate('mentions', 'name')
     .populate(REPLY_POPULATE);
 
   // Notify everyone else in the conversation (don't fail the send if this errors).
