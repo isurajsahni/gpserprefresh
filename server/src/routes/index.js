@@ -61,6 +61,8 @@ import {
   openDirect,
   listMessages,
   sendMessage,
+  editMessage,
+  deleteMessage,
   unreadCounts,
   markChannelRead,
   addMembers,
@@ -313,6 +315,8 @@ api.post('/good-morning', postGoodMorning);
   r.get('/unread', unreadCounts);
   r.get('/channels/:id/messages', listMessages);
   r.post('/channels/:id/messages', sendMessage);
+  r.put('/messages/:id', editMessage);
+  r.delete('/messages/:id', deleteMessage);
   r.post('/channels/:id/members', addMembers);
   r.patch('/channels/:id/read', markChannelRead);
   api.use('/chat', r);

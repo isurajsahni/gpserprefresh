@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Hash, Plus, Send, MessageSquarePlus, Search, Lock, UserPlus, Users, Reply, X, ImagePlus, Mic, Square, Trash2, Loader2, AtSign } from 'lucide-react';
+import { Hash, Plus, Send, MessageSquarePlus, Search, Lock, UserPlus, Users, Reply, X, ImagePlus, Mic, Square, Trash2, Loader2, AtSign, Pencil } from 'lucide-react';
 import api from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { useUserOptions } from '../hooks/useFetch';
@@ -66,6 +66,7 @@ export default function Chat() {
   const [userQuery, setUserQuery] = useState('');
   const [addQuery, setAddQuery] = useState('');
   const [replyTo, setReplyTo] = useState(null); // message being replied to
+  const [editing, setEditing] = useState(null); // { id, text } of message being edited
   const [image, setImage] = useState('');       // pending image attachment url
   const [audio, setAudio] = useState(null);      // pending voice clip { url, duration }
   const [mentions, setMentions] = useState([]);  // [{ _id, name }] tracked while composing
@@ -187,7 +188,7 @@ export default function Chat() {
 
   // Drop any in-progress draft when switching conversations.
   useEffect(() => {
-    setReplyTo(null); setText(''); setImage(''); setAudio(null); setMentions([]); setMentionQuery(null);
+    setReplyTo(null); setEditing(null); setText(''); setImage(''); setAudio(null); setMentions([]); setMentionQuery(null);
   }, [activeId]);
 
   // Stop the mic and timers if the component unmounts mid-recording.
@@ -199,6 +200,24 @@ export default function Chat() {
   const startReply = (m) => {
     setReplyTo(m);
     inputRef.current?.focus();
+  };
+
+  // ── Edit / delete own messages ───────────────────────────────────────
+  const saveEdit = async () => {
+    const body = (editing?.text || '').trim();
+    const target = messages.find((m) => m._id === editing.id);
+    if (!body && !target?.imageUrl && !target?.audioUrl) return; // nothing left to keep
+    const { data } = await api.put(`/chat/messages/${editing.id}`, { text: body });
+    setMessages((prev) => prev.map((m) => (m._id === data._id ? data : m)));
+    setEditing(null);
+  };
+
+  const removeMessage = async (id) => {
+    if (!confirm('Delete this message?')) return;
+    await api.delete(`/chat/messages/${id}`);
+    seenRef.current.delete(id);
+    setMessages((prev) => prev.filter((m) => m._id !== id));
+    if (editing?.id === id) setEditing(null);
   };
 
   // ── Composer: @mentions ──────────────────────────────────────────────
@@ -415,6 +434,7 @@ export default function Chat() {
               {messages.length === 0 && <p className="py-10 text-center text-sm text-gray-400">No messages yet — say hello! 👋</p>}
               {messages.map((m) => {
                 const mine = String(m.sender?._id) === String(user._id);
+                const canDelete = mine || user.role === 'super_admin';
                 return (
                   <div key={m._id} className="group flex gap-3">
                     <Avatar name={m.sender?.name} src={m.sender?.avatar} size={36} />
@@ -422,12 +442,22 @@ export default function Chat() {
                       <div className="flex items-baseline gap-2">
                         <span className="text-sm font-semibold text-gray-900">{mine ? 'You' : m.sender?.name}</span>
                         <span className="text-[11px] text-gray-400">{format(new Date(m.createdAt), 'dd MMM, h:mm a')}</span>
-                        <button
-                          onClick={() => startReply(m)}
-                          className="ml-1 inline-flex items-center gap-1 text-[11px] font-medium text-gray-400 opacity-0 transition hover:text-brand-700 group-hover:opacity-100"
-                        >
-                          <Reply size={12} /> Reply
-                        </button>
+                        {m.edited && <span className="text-[10px] italic text-gray-400">(edited)</span>}
+                        <div className="ml-1 flex items-center gap-2 opacity-0 transition group-hover:opacity-100">
+                          <button onClick={() => startReply(m)} className="inline-flex items-center gap-1 text-[11px] font-medium text-gray-400 hover:text-brand-700">
+                            <Reply size={12} /> Reply
+                          </button>
+                          {mine && (
+                            <button onClick={() => setEditing({ id: m._id, text: m.text || '' })} className="inline-flex items-center gap-1 text-[11px] font-medium text-gray-400 hover:text-brand-700">
+                              <Pencil size={12} /> Edit
+                            </button>
+                          )}
+                          {canDelete && (
+                            <button onClick={() => removeMessage(m._id)} className="inline-flex items-center gap-1 text-[11px] font-medium text-gray-400 hover:text-red-600">
+                              <Trash2 size={12} /> Delete
+                            </button>
+                          )}
+                        </div>
                       </div>
                       {m.replyTo && (
                         <div className="mt-1 flex items-center gap-1.5 rounded border-l-2 border-brand-400 bg-gray-50 px-2 py-1 text-xs">
@@ -436,7 +466,17 @@ export default function Chat() {
                           <span className="truncate text-gray-500">{replyPreview(m.replyTo)}</span>
                         </div>
                       )}
-                      <MessageText text={m.text} mentions={m.mentions} meId={user._id} />
+                      {editing?.id === m._id ? (
+                        <form onSubmit={(e) => { e.preventDefault(); saveEdit(); }} className="mt-1 flex items-center gap-2">
+                          <input autoFocus className="input" value={editing.text}
+                            onChange={(e) => setEditing({ ...editing, text: e.target.value })}
+                            onKeyDown={(e) => { if (e.key === 'Escape') setEditing(null); }} />
+                          <button type="submit" className="btn-primary btn-sm">Save</button>
+                          <button type="button" onClick={() => setEditing(null)} className="btn-secondary btn-sm">Cancel</button>
+                        </form>
+                      ) : (
+                        <MessageText text={m.text} mentions={m.mentions} meId={user._id} />
+                      )}
                       {m.imageUrl && (
                         <a href={m.imageUrl} target="_blank" rel="noreferrer" className="mt-1 inline-block">
                           <img src={m.imageUrl} alt="attachment" className="max-h-64 max-w-[260px] rounded-lg border border-gray-200 object-cover hover:opacity-90" />

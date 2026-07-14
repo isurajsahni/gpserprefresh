@@ -187,6 +187,36 @@ export const sendMessage = asyncHandler(async (req, res) => {
   res.status(201).json(populated);
 });
 
+// PUT /api/chat/messages/:id  { text }  -> edit your own message's text.
+export const editMessage = asyncHandler(async (req, res) => {
+  const msg = await Message.findById(req.params.id);
+  if (!msg) throw new ApiError(404, 'Message not found');
+  if (String(msg.sender) !== String(req.auth.id)) throw new ApiError(403, 'You can only edit your own messages');
+
+  const text = (req.body.text || '').trim();
+  if (!text && !msg.imageUrl && !msg.audioUrl) throw new ApiError(400, 'Message cannot be empty');
+
+  msg.text = text;
+  msg.edited = true;
+  await msg.save();
+  const populated = await Message.findById(msg._id)
+    .populate('sender', 'name role avatar')
+    .populate('mentions', 'name')
+    .populate(REPLY_POPULATE);
+  res.json(populated);
+});
+
+// DELETE /api/chat/messages/:id  -> remove your own message (super admin may remove any).
+export const deleteMessage = asyncHandler(async (req, res) => {
+  const msg = await Message.findById(req.params.id);
+  if (!msg) throw new ApiError(404, 'Message not found');
+  const isOwner = String(msg.sender) === String(req.auth.id);
+  if (!isOwner && req.auth.role !== 'super_admin') throw new ApiError(403, 'You can only delete your own messages');
+
+  await msg.deleteOne();
+  res.json({ success: true, id: req.params.id });
+});
+
 // GET /api/chat/unread -> { total, byChannel: { <channelId>: count } }
 // Unread = chat notifications addressed to me that I haven't read yet, grouped by channel.
 export const unreadCounts = asyncHandler(async (req, res) => {
