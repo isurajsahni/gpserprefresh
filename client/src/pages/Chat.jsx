@@ -249,7 +249,8 @@ export default function Chat() {
   };
 
   // Wrap the textarea selection (or insert markers) for a formatting toolbar button.
-  const WRAP = { bold: '**', italic: '_', strike: '~~', code: '`' };
+  // Slack-style single delimiters (the renderer also accepts **bold** / ~~strike~~).
+  const WRAP = { bold: '*', italic: '_', strike: '~', code: '`' };
   const applyFormat = (type) => {
     const el = inputRef.current;
     if (!el) return;
@@ -573,9 +574,9 @@ export default function Chat() {
                 {/* Formatting toolbar */}
                 {!recording && (
                   <div className="mb-2 flex items-center gap-0.5">
-                    <button type="button" onClick={() => applyFormat('bold')} className="btn-ghost btn-sm text-gray-500" title="Bold (**text**)"><Bold size={15} /></button>
+                    <button type="button" onClick={() => applyFormat('bold')} className="btn-ghost btn-sm text-gray-500" title="Bold (*text*)"><Bold size={15} /></button>
                     <button type="button" onClick={() => applyFormat('italic')} className="btn-ghost btn-sm text-gray-500" title="Italic (_text_)"><Italic size={15} /></button>
-                    <button type="button" onClick={() => applyFormat('strike')} className="btn-ghost btn-sm text-gray-500" title="Strikethrough (~~text~~)"><Strikethrough size={15} /></button>
+                    <button type="button" onClick={() => applyFormat('strike')} className="btn-ghost btn-sm text-gray-500" title="Strikethrough (~text~)"><Strikethrough size={15} /></button>
                     <button type="button" onClick={() => applyFormat('code')} className="btn-ghost btn-sm text-gray-500" title="Code (`text`)"><Code size={15} /></button>
                     <span className="mx-1 h-4 w-px bg-gray-200" />
                     <button type="button" onClick={() => applyFormat('ul')} className="btn-ghost btn-sm text-gray-500" title="Bulleted list"><List size={15} /></button>

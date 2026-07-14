@@ -1,21 +1,25 @@
 // Lightweight Slack-style message formatting — no external markdown dependency.
-// Supports: **bold**, _italic_, ~~strike~~, `code`, ```code blocks```, links,
-// bare URLs, bullet (- / *) and numbered (1.) lists, > blockquotes, and it keeps
-// @mention / @all highlighting working inside all of the above.
+// Supports Slack syntax *bold*, _italic_, ~strike~ (and Markdown **bold** /
+// ~~strike~~ too), `code`, ```code blocks```, links, bare URLs, bullet (- / *)
+// and numbered (1.) lists, > blockquotes — keeping @mention / @all highlighting
+// inside all of the above.
 
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 // Inline token patterns, in priority order (earliest match in the string wins;
-// ties break by this order). `mention` is appended dynamically when there are
-// names to match.
+// ties break by this order). Double-delimiter variants come before single ones.
+// The single variants forbid a space right inside the markers so "2 * 3 * 4"
+// isn't mistaken for bold. `mention` is appended dynamically.
 function inlinePatterns(ctx) {
   const pats = [
     { type: 'code', re: /`([^`]+)`/ },
     { type: 'bold', re: /\*\*([\s\S]+?)\*\*/ },
+    { type: 'bold', re: /\*(\S(?:[^*\n]*?\S)?)\*/ },
     { type: 'strike', re: /~~([\s\S]+?)~~/ },
+    { type: 'strike', re: /~(\S(?:[^~\n]*?\S)?)~/ },
     { type: 'link', re: /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/ },
     { type: 'url', re: /(https?:\/\/[^\s]+)/ },
-    { type: 'italic', re: /_([^_]+?)_/ },
+    { type: 'italic', re: /_(\S(?:[^_\n]*?\S)?)_/ },
   ];
   if (ctx.names.length) {
     pats.push({ type: 'mention', re: new RegExp(`@(${ctx.names.map(escapeRegex).join('|')})`) });
