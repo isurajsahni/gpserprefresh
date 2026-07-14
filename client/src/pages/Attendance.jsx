@@ -118,11 +118,12 @@ export default function Attendance() {
   const mine = records.filter((r) => String(r.employee?._id || r.employee) === String(user._id));
   const todayRec = mine.find((r) => new Date(r.date).toDateString() === today);
 
-  // Check-in window rules (mirror the backend): open until 11:00 AM, one session a day.
+  // Check-in window rules (mirror the backend): 9:00 AM – 11:00 AM, one session a day.
   const nowMins = new Date().getHours() * 60 + new Date().getMinutes();
+  const checkInNotOpen = nowMins < 9 * 60;
   const checkInClosed = nowMins > 11 * 60;
   const doneForToday = !!todayRec?.checkOut;
-  const canCheckIn = !busy && !todayRec?.clockedIn && !doneForToday && !checkInClosed;
+  const canCheckIn = !busy && !todayRec?.clockedIn && !doneForToday && !checkInNotOpen && !checkInClosed;
 
   // Filter the list to the selected time range.
   const now = new Date();
@@ -164,7 +165,7 @@ export default function Attendance() {
         <div className="flex flex-wrap gap-2">
           {isAdmin && <button onClick={() => openRec(null)} className="btn-secondary"><Plus size={18} /> Add Record</button>}
           <button onClick={() => act('checkin')} disabled={!canCheckIn} className="btn-primary"
-            title={checkInClosed ? 'Check-in closed after 11:00 AM' : doneForToday ? 'Already checked out today' : ''}>
+            title={checkInNotOpen ? 'Check-in opens at 9:00 AM' : checkInClosed ? 'Check-in closed after 11:00 AM' : doneForToday ? 'Already checked out today' : ''}>
             <LogIn size={18} /> Check In
           </button>
           <button onClick={() => act('checkout')} disabled={busy || !todayRec?.clockedIn} className="btn-secondary">
@@ -184,9 +185,13 @@ export default function Attendance() {
         </div>
       )}
 
-      {!todayRec?.clockedIn && (doneForToday || checkInClosed) && (
+      {!todayRec?.clockedIn && (doneForToday || checkInNotOpen || checkInClosed) && (
         <div className="mb-4 rounded-lg bg-gray-100 px-3 py-2 text-sm text-gray-600">
-          {doneForToday ? 'You have checked out for today — check-in reopens tomorrow.' : 'Check-in is closed for today (the cut-off is 11:00 AM).'}
+          {doneForToday
+            ? 'You have checked out for today — check-in reopens tomorrow.'
+            : checkInNotOpen
+              ? 'Check-in opens at 9:00 AM.'
+              : 'Check-in is closed for today (the cut-off is 11:00 AM).'}
         </div>
       )}
 

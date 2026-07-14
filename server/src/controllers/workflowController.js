@@ -50,10 +50,10 @@ function todayRange() {
 }
 
 // ── Attendance day rules (minutes since midnight; server runs in IST) ──
+const CHECKIN_OPEN = 9 * 60; //           09:00 AM — check-in window opens
 const CHECKIN_CUTOFF = 11 * 60; //        11:00 AM — no check-in allowed after this
 const AUTO_CHECKOUT = 18 * 60 + 30; //    18:30 — everyone still on the clock is auto-checked-out
 const AUTO_CHECKOUT_STR = '18:30';
-const RECHECKIN_BLOCK_UNTIL = 20 * 60; // 20:00 — after checking out, no check-in until 8:00 PM
 
 const timeStr = (d) => d.toTimeString().slice(0, 5);
 const nowMinutes = (d) => d.getHours() * 60 + d.getMinutes();
@@ -119,14 +119,17 @@ export const checkIn = asyncHandler(async (req, res) => {
   const now = new Date();
   const mins = nowMinutes(now);
 
-  // Hard cut-off: no check-in after 11:00 AM.
+  // Check-in window: 9:00 AM – 11:00 AM.
+  if (mins < CHECKIN_OPEN) {
+    throw new ApiError(403, 'Check-in opens at 9:00 AM.');
+  }
   if (mins > CHECKIN_CUTOFF) {
     throw new ApiError(403, 'Check-in is closed for today — the cut-off is 11:00 AM.');
   }
   if (record?.clockedIn) throw new ApiError(409, 'You are already checked in.');
-  // One session a day: once you've checked out, no check-in again until 8:00 PM.
-  if (record?.checkOut && mins < RECHECKIN_BLOCK_UNTIL) {
-    throw new ApiError(409, "You've already checked out today — check-in reopens at 8:00 PM.");
+  // One session a day: once you've checked out, you're done until tomorrow.
+  if (record?.checkOut) {
+    throw new ApiError(409, "You've already checked out today — check-in reopens tomorrow.");
   }
 
   const checkInStr = timeStr(now);
