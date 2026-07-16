@@ -101,7 +101,13 @@ export default function Dashboard() {
     try {
       const r = await api.post('/good-morning', { message: thought });
       setThought('');
-      setPostMsg(r.data.earnedPoint ? '🎉 First best thought of the day — you earned an EOM point!' : 'Posted to the feed!');
+      setPostMsg(
+        r.data.earnedPoint
+          ? '🎉 First best thought of the day — you earned an EOM point!'
+          : r.data.checkedIn === false
+          ? 'Posted to the feed! Check in on Attendance first to be eligible for the EOM point.'
+          : 'Posted to the feed!'
+      );
       refetch();
     } catch (err) {
       setPostMsg(err.message);

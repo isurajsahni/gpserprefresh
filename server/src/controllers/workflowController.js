@@ -246,13 +246,22 @@ export const listGoodMorning = asyncHandler(async (_req, res) => {
 });
 
 // POST /api/good-morning  { message }  -> first quality post of the day earns an EOM point
+// The point requires checking in first: you must already have today's check-in
+// when you post. Posting without one still reaches the feed, it just earns nothing
+// (and doesn't consume the day's point — it stays up for grabs).
 export const postGoodMorning = asyncHandler(async (req, res) => {
   const message = (req.body.message || '').trim();
   if (message.length < 5) throw new ApiError(400, 'Message is too short');
 
   const { start, end } = todayRange();
+  const checkedIn = !!(await Attendance.exists({
+    employee: req.auth.id,
+    date: { $gte: start, $lt: end },
+    checkIn: { $nin: ['', null] },
+  }));
+
   const alreadyEarnedToday = await GoodMorningMessage.findOne({ earnedPoint: true, postedAt: { $gte: start, $lt: end } });
-  const earnedPoint = !alreadyEarnedToday;
+  const earnedPoint = checkedIn && !alreadyEarnedToday;
 
   const post = await GoodMorningMessage.create({
     user: req.auth.id,
@@ -271,7 +280,7 @@ export const postGoodMorning = asyncHandler(async (req, res) => {
   }
 
   const populated = await GoodMorningMessage.findById(post._id).populate('user', 'name role avatar');
-  res.status(201).json({ post: populated, earnedPoint });
+  res.status(201).json({ post: populated, earnedPoint, checkedIn });
 });
 
 // GET /api/recognition?period=YYYY-MM | YYYY  -> performance leaderboard
