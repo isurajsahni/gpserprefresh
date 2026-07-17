@@ -7,6 +7,7 @@ import { useFetch } from '../hooks/useFetch';
 import { useAuth } from '../context/AuthContext';
 import { Loading, EmptyState, StatCard, Badge, Avatar, PageHeader } from '../components/ui/primitives';
 import Modal from '../components/ui/Modal';
+import OnlineUsers from '../components/OnlineUsers';
 import { ROLE_LABELS } from '../lib/access';
 import { formatDate, timeAgo } from '../lib/format';
 import api from '../api/client';
@@ -299,8 +300,10 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Notices + Holidays */}
+        {/* Presence + Notices + Holidays */}
         <div className="space-y-6">
+          <OnlineUsers />
+
           <div className="card">
             <div className="flex items-center gap-2 border-b border-gray-100 px-5 py-4">
               <Icons.Megaphone size={18} className="text-brand-700" />

@@ -28,6 +28,7 @@ import {
   checkIn,
   checkOut,
   attendanceHeartbeat,
+  attendancePresence,
   attendanceToday,
   attendanceSummary,
   listGoodMorning,
@@ -119,6 +120,7 @@ api.post('/uploads', uploadImageHandler);
 api.get('/attendance/summary', requireModule('attendance'), attendanceSummary);
 api.get('/attendance/today', requireModule('attendance'), attendanceToday);
 api.post('/attendance/heartbeat', requireModule('attendance'), attendanceHeartbeat);
+api.get('/attendance/presence', requireModule('attendance'), attendancePresence);
 {
   const { router } = crudRouter(Attendance, {
     module: 'attendance',

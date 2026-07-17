@@ -188,6 +188,27 @@ export const attendanceToday = asyncHandler(async (req, res) => {
   res.json(record || null);
 });
 
+// GET /api/attendance/presence — who's on the clock right now. Visible to every
+// role regardless of their attendance scope: it exposes only presence, never
+// hours or times. Online = checked in today and not yet checked out; abandoned
+// sessions are closed by the stale-session sweep, so they drop off on their own.
+export const attendancePresence = asyncHandler(async (req, res) => {
+  const { start, end } = todayRange();
+
+  const [users, records] = await Promise.all([
+    User.find({ status: { $ne: 'Inactive' } }).select('name role department avatar').sort('name').lean(),
+    Attendance.find({ date: { $gte: start, $lt: end }, clockedIn: true }).select('employee checkIn').lean(),
+  ]);
+
+  const live = new Map(records.map((r) => [String(r.employee), r]));
+  const people = users.map((u) => {
+    const rec = live.get(String(u._id));
+    return { ...u, online: !!rec, since: rec?.checkIn || '' };
+  });
+
+  res.json({ onlineCount: live.size, people });
+});
+
 // GET /api/attendance/summary?from=&to=  -> per-employee working-hours aggregates.
 // Team-access roles (super_admin, operation) see everyone; others see themselves.
 export const attendanceSummary = asyncHandler(async (req, res) => {
